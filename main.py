@@ -1,39 +1,16 @@
-import tkinter as tk
-from tkinter import filedialog, messagebox
-import pandas as pd
-import os
-import file_operatins
-
-
 
 import tkinter as tk
 from tkinter import filedialog, messagebox
 import file_operations
 
-# Define global variables to store file paths
-csv_path = ""
-xlsx_path = ""
-
-def load_file(file_type):
-    global csv_path, xlsx_path
+def load_file(file_type, entry_widget):
     filetypes = (('CSV files', '*.csv') if file_type == 'csv' else ('Excel files', '*.xlsx'), ('All files', '*.*'))
     filepath = filedialog.askopenfilename(title=f"Open {file_type.upper()} File", filetypes=filetypes)
     if filepath:
-        if file_type == 'csv':
-            csv_path = filepath
-        else:
-            xlsx_path = filepath
-        return filepath
-    else:
-        return None
-    
-def select_destination():
-    folder_path = filedialog.askdirectory()
-    if folder_path:
-        return folder_path
-    else:  
-        return None
-    
+        entry_widget.delete(0, tk.END)  # Clear any previous entry
+        entry_widget.insert(0, filepath)  # Update the entry with the selected file path
+    return filepath
+
 def process_files():
     global csv_path, xlsx_path
     if csv_path and xlsx_path:
@@ -62,8 +39,8 @@ def main_app():
     out_entry = tk.Entry(root, width=50)
     out_entry.grid(row=2, column=1, padx=5, pady=5, sticky='ew')
 
-    tk.Button(root, text='Select CSV File', command=lambda: csv_entry.insert(0, load_file('csv'))).grid(row=0, column=2, padx=5, pady=5)
-    tk.Button(root, text='Select Xlsx File', command=lambda: xlsx_entry.insert(0, load_file('xlsx'))).grid(row=1, column=2, padx=5, pady=5)
+    tk.Button(root, text='Select CSV File', command=lambda: load_file('csv', csv_entry)).grid(row=0, column=2, padx=5, pady=5)
+    tk.Button(root, text='Select Xlsx File', command=lambda: load_file('xlsx', xlsx_entry)).grid(row=1, column=2, padx=5, pady=5)
     tk.Button(root, text='Select Destination', command=lambda: out_entry.insert(0, select_destination())).grid(row=2, column=2, padx=5, pady=5)
 
     tk.Button(root, text='Filter', command=process_files).grid(row=3, column=2, padx=5, pady=5)
