@@ -3,8 +3,8 @@ from openpyxl import load_workbook
 
 def file_operations(csv_file_path, workbook_path, output_dir):
     try:
-        # Load CSV data
-        data = pd.read_csv(csv_file_path, header=0)
+        # Load CSV data with low_memory set to False
+        data = pd.read_csv(csv_file_path, header=0, low_memory=False)
         
         # Load workbook and get active worksheet
         wb = load_workbook(workbook_path)
@@ -20,15 +20,20 @@ def file_operations(csv_file_path, workbook_path, output_dir):
 
         # Filter the DataFrame based on conditions
         filtered_data = data[data['TOPECO'].isin(['1_Portfolio', '1_Party'])]
-        filtered_data['Counterparties Type'] = filtered_data['E'].apply(lambda x: vlookup_func(x, lookup_dict))
         filtered_data = filtered_data[filtered_data['SALERID'].isnull()]
         filtered_data = filtered_data[filtered_data['CUSTOMERTYPE'] == 'noncustomer']
 
-        # Define the output CSV file path within the specified output directory
+        # Add a new column 'Counterparties Type' using VLOOKUP
+        filtered_data['Counterparties Type'] = filtered_data['E'].apply(lambda x: vlookup_func(x, lookup_dict))
+
+        # Save the filtered data to a new CSV file
         filtered_csv = f"{output_dir}/{csv_file_path.split('/')[-1].replace('.csv', '_filtered.csv')}"
         filtered_data.to_csv(filtered_csv, index=False)
         print(f"Filtered data saved to {filtered_csv}")
         print(filtered_data.head())
         
     except Exception as e:
-        print(f"Error processing the csv file: {e}")
+        print(f"Error processing the CSV file: {e}")
+
+# Example usage:
+file_operations("input.csv", "Exchange_Broker_9_large_banks_List.xlsx", "output_directory")
