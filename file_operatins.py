@@ -32,9 +32,6 @@ pivot_table['Total_amount'] = pivot_table[('amount', 'customer')] + pivot_table[
 # Add grand total row at the bottom
 pivot_table.loc['Grand Total'] = pivot_table.sum()
 
-# Optionally, rename the columns to be more descriptive if needed
-pivot_table.columns = [f'{col[0]}_{col[1]}' for col in pivot_table.columns]
-
 # Save the pivot table to an Excel file with formatting
 with pd.ExcelWriter('output_pivot_table_with_totals.xlsx', engine='xlsxwriter') as writer:
     pivot_table.to_excel(writer, sheet_name='Pivot Table with Totals')
@@ -48,20 +45,28 @@ with pd.ExcelWriter('output_pivot_table_with_totals.xlsx', engine='xlsxwriter') 
         'bold': True,
         'text_wrap': True,
         'valign': 'top',
-        'fg_color': '#D7E4BC',
+        'fg_color': '#D7E4BC',  # Light green background
         'border': 1
     })
 
     # Define a number format for the data cells
     number_format = workbook.add_format({'num_format': '#,##0'})
 
-    # Set the column widths and format
+    # Define a format for the 'Grand Total' row
+    total_format = workbook.add_format({
+        'bold': True,
+        'bg_color': '#FFA07A',  # Light salmon background
+        'border': 1,
+        'num_format': '#,##0'
+    })
+
+    # Set the column widths and format for each column
     for col_num, value in enumerate(pivot_table.columns.values):
         worksheet.write(0, col_num + 1, value, header_format)
         worksheet.set_column(col_num + 1, col_num + 1, 18, number_format)
 
-    # Make the 'Grand Total' row bold
-    worksheet.write('A' + str(len(pivot_table) + 1), 'Grand Total', workbook.add_format({'bold': True}))
-    for i in range(1, len(pivot_table.columns) + 1):
-        worksheet.write(len(pivot_table), i, pivot_table.iloc[-1, i - 1], workbook.add_format({'bold': True, 'num_format': '#,##0'}))
+    # Format the 'Grand Total' row
+    worksheet.write('A' + str(len(pivot_table)), 'Grand Total', total_format)
+    for col_num in range(len(pivot_table.columns)):
+        worksheet.write(len(pivot_table) - 1, col_num + 1, pivot_table.iloc[-1, col_num], total_format)
         
