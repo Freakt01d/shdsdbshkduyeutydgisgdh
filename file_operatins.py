@@ -1,65 +1,67 @@
 import pandas as pd
-import numpy as np
 
-def file_operations(csv_file_path, workbook_path, output_dir):
-    try:
-        # Load the CSV file
-        data = pd.read_csv(csv_file_path, header=0, low_memory=False)
+# Sample DataFrames
+data_csv = pd.DataFrame({
+    'common_key_column': [1, 2, 1, 2],
+    'instrument_type': ['Bond', 'Stock', 'Bond', 'Stock'],
+    'customer_type': ['customer', 'non_customer', 'customer', 'non_customer'],
+    'trade_id': [101, 102, 103, 104],
+    'amount': [1000, 2000, 1500, 2500]
+})
 
-        # Load the Excel workbook
-        data1 = pd.read_excel(workbook_path)
+data_xlsx = pd.DataFrame({
+    'common_key_column': [1, 2],
+    'other_info': [200, 400]
+})
 
-        # Filter data based on specific conditions
-        filtered_data = data[data['TOPECO'].isin(['1_Portfolio', '1_Party'])]
-        filtered_data = filtered_data[filtered_data['SALERID'].isnull()]
-        filtered_data = filtered_data[filtered_data['CUSTOMERTYPE'] == 'noncustomer']
-        filtered_data['Counterparties Type'] = np.where(
-            filtered_data['COUNTERP_TRADEPARTYID'].isin(data1['COUNTERP_TRADEPARTYID']),
-            '9 Large Banks without Sales id',
-            'Exchange_Broker'
-        )
+# Merge DataFrames
+merged_data = pd.merge(data_csv, data_xlsx, on='common_key_column', how='inner')
 
-        # Save the filtered data to a new CSV file
-        filtered_csv = f"{output_dir}/{csv_file_path.split('/')[-1].replace('.csv', '_filtered.csv')}"
-        filtered_data.to_csv(filtered_csv, index=False)
-        print(f"Filtered data saved to {filtered_csv}")
-        print(filtered_data.head())
+# Create Pivot Table
+pivot_table = pd.pivot_table(merged_data,
+                             values=['trade_id', 'amount'],
+                             index='instrument_type',
+                             columns='customer_type',
+                             aggfunc={'trade_id': pd.Series.nunique, 'amount': 'sum'},
+                             fill_value=0)
 
-        # Process and filter another subset of the data
-        filtered_data_1 = data[data['TOPECO'].isin(['1_Portfolio', '1_Party'])]
-        filtered_data_1 = filtered_data_1[filtered_data_1['CUSTOMERTYPE'] == 'customer']
-        filtered_data_1['Counterparties Type'] = np.where(
-            filtered_data_1['COUNTERP_TRADEPARTYID'].isin(data1['COUNTERP_TRADEPARTYID']),
-            '9 Large Banks without Sales id',
-            'Exchange_Broker'
-        )
+# Adding new total columns for each instrument_type
+pivot_table['Total_trades'] = pivot_table[('trade_id', 'customer')] + pivot_table[('trade_id', 'non_customer')]
+pivot_table['Total_amount'] = pivot_table[('amount', 'customer')] + pivot_table[('amount', 'non_customer')]
 
-        # Save this other subset to a new CSV file
-        filtered_csv1 = f"{output_dir}/{csv_file_path.split('/')[-1].replace('.csv', 'cus_filtered.csv')}"
-        filtered_data_1.to_csv(filtered_csv1, index=False)
-        print(f"Filtered data saved to {filtered_csv1}")
-        print(filtered_data_1.head())
+# Add grand total row at the bottom
+pivot_table.loc['Grand Total'] = pivot_table.sum()
 
-        # Create a pivot table from a specific subset of data
-        filtered_data2 = data[data['TOPECO'].isin(['0_Party', '_Party'])]
-        pivot_table = pd.pivot_table(
-            filtered_data2,
-            values=['COUNTERP_TRADEPARTYID', 'ABS_EXCHANGEDAMOUNT_USD'],
-            index='INSTRUMENT_TYPE',
-            columns='CUSTOMERTYPE',
-            aggfunc={'COUNTERP_TRADEPARTYID': 'count', 'ABS_EXCHANGEDAMOUNT_USD': 'sum'},
-            fill_value=0
-        )
-        
-        # Rename the columns of the pivot table to be more descriptive
-        pivot_table.columns = [f'{col[0]}_{col[1]}' for col in pivot_table.columns]
+# Optionally, rename the columns to be more descriptive if needed
+pivot_table.columns = [f'{col[0]}_{col[1]}' for col in pivot_table.columns]
 
-        # Save the pivot table to an Excel file
-        pivot_output_path = output_dir + '/output_pivot_table.xlsx'
-        with pd.ExcelWriter(pivot_output_path) as writer:
-            pivot_table.to_excel(writer, sheet_name='Pivot Table')
-        print(f"Pivot table saved to {pivot_output_path}")
+# Save the pivot table to an Excel file with formatting
+with pd.ExcelWriter('output_pivot_table_with_totals.xlsx', engine='xlsxwriter') as writer:
+    pivot_table.to_excel(writer, sheet_name='Pivot Table with Totals')
 
-    except Exception as e:
-        print(f"Error processing the CSV file: {e}")
+    # Get the xlsxwriter workbook and worksheet objects
+    workbook  = writer.book
+    worksheet = writer.sheets['Pivot Table with Totals']
+
+    # Define a format for the column headers
+    header_format = workbook.add_format({
+        'bold': True,
+        'text_wrap': True,
+        'valign': 'top',
+        'fg_color': '#D7E4BC',
+        'border': 1
+    })
+
+    # Define a number format for the data cells
+    number_format = workbook.add_format({'num_format': '#,##0'})
+
+    # Set the column widths and format
+    for col_num, value in enumerate(pivot_table.columns.values):
+        worksheet.write(0, col_num + 1, value, header_format)
+        worksheet.set_column(col_num + 1, col_num + 1, 18, number_format)
+
+    # Make the 'Grand Total' row bold
+    worksheet.write('A' + str(len(pivot_table) + 1), 'Grand Total', workbook.add_format({'bold': True}))
+    for i in range(1, len(pivot_table.columns) + 1):
+        worksheet.write(len(pivot_table), i, pivot_table.iloc[-1, i - 1], workbook.add_format({'bold': True, 'num_format': '#,##0'}))
         
