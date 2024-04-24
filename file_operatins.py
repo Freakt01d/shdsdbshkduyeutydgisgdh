@@ -1,37 +1,48 @@
-# Create a pivot table with multi-level index
-new_pivot_table = pd.pivot_table(filtered_noncustomer,
-                                 index=['INSTRUMENT_TYPE', 'PRODUCT_STRUCTURE_TYPE'],
-                                 values=['ABS_EXCHANGEDAMOUNT_USD', 'COUNTERP_TRADEPARTYID'],
-                                 aggfunc={'ABS_EXCHANGEDAMOUNT_USD': np.sum, 'COUNTERP_TRADEPARTYID': 'count'},
-                                 fill_value=0)
+import pandas as pd
+import numpy as np
 
-# Write to Excel, with the pivot table placed 10 rows below the previous one
-output_file = 'output_pivot_table_with_vm7.xlsx'
+# Sample data - replace this with your actual DataFrame
+data = pd.DataFrame({
+    'INSTRUMENT_TYPE': ['Bond', 'Bond', 'Stock', 'Stock', 'Bond', 'Stock'],
+    'PRODUCT_STRUCTURE_TYPE': ['SubType1', 'SubType2', 'SubType1', 'SubType2', 'SubType3', 'SubType3'],
+    'CUSTOMERTYPE': ['customer', 'noncustomer', 'customer', 'noncustomer', 'customer', 'noncustomer'],
+    'ABS_EXCHANGEDAMOUNT_USD': [100, 200, 300, 400, 150, 250],
+    'COUNTERP_TRADEPARTYID': [1, 2, 1, 2, 1, 2]
+})
+
+# Filtering data as needed
+filtered_data = data[(data['CUSTOMERTYPE'] == 'noncustomer') & (~data['INSTRUMENT_TYPE'].isin(['Cash_Securities']))]
+
+# Create a pivot table
+pivot_table = pd.pivot_table(
+    filtered_data,
+    index=['INSTRUMENT_TYPE', 'PRODUCT_STRUCTURE_TYPE'],
+    values=['ABS_EXCHANGEDAMOUNT_USD', 'COUNTERP_TRADEPARTYID'],
+    aggfunc={'ABS_EXCHANGEDAMOUNT_USD': np.sum, 'COUNTERP_TRADEPARTYID': 'count'},
+    fill_value=0,
+    margins=True,
+    margins_name='Grand Total'
+)
+
+# Export the pivot table to Excel
+output_file = 'detailed_pivot_table.xlsx'
 with pd.ExcelWriter(output_file, engine='xlsxwriter') as writer:
-    # Assume the previous pivot table is saved in this writer session
-    worksheet = writer.sheets['Pivot Table with Totals']
-    start_row = 10 + len(pivot_table.index) + 10  # calculate the starting row
+    pivot_table.to_excel(writer, sheet_name='Detailed View')
 
-    # Save the new pivot table with multi-level index
-    new_pivot_table.to_excel(writer, sheet_name='Pivot Table with Totals', startrow=start_row)
-
-    # Get the workbook and worksheet objects
+    # Access the workbook and the worksheet
     workbook = writer.book
-    worksheet = writer.sheets['Pivot Table with Totals']
+    worksheet = writer.sheets['Detailed View']
 
-    # Set up the pivot table styles
-    pivot_table_range = 'A' + str(start_row + 1)
-    pivot_table_end = 'B' + str(start_row + len(new_pivot_table) + 1)
+    # Optional: Set format for the header
+    header_format = workbook.add_format({'bold': True, 'align': 'center', 'bg_color': '#D7E4BC'})
+    for col_num, value in enumerate(pivot_table.columns.values):
+        worksheet.write(0, col_num + 1, value, header_format)
 
-    pivot_table_format = {
-        'type': 'dropdown',
-        'source': ['Bond', 'Stock', 'Other'],  # Replace with your instrument types
-    }
+    # Optional: Auto-filter to easily hide/unhide rows in Excel
+    worksheet.autofilter(0, 0, len(pivot_table), len(pivot_table.columns) - 1)
 
-    # Add drop-down menus to the first level of the index
-    worksheet.add_data_validation(pivot_table_range, pivot_table_format)
-    worksheet.add_data_validation(pivot_table_end, pivot_table_format)
+    # Optional: Set the column width
+    worksheet.set_column('A:B', 20)
+    worksheet.set_column('C:D', 18)
 
-    # Autofit columns for better visibility
-    for col in range(1, len(new_pivot_table.columns) + 1):
-        worksheet.set_column(col, col, width=18)
+# Note: Users will need to manually hide/unhide rows in Excel.
