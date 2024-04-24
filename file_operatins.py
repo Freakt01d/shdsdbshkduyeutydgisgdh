@@ -41,20 +41,20 @@ def file_operations(csv_file_path, workbook_path, output_dir):
             worksheet = writer.sheets['Pivot Table']
             vm7_start_col = len(pivot_table.columns) + 2  # Adjust for space
 
-            vm7_data.to_excel(writer, sheet_name='Pivot Table', startrow=2, startcol=vm7_start_col, header=False, index=True)
-            
+            vm7_data.to_excel(writer, sheet_name='Pivot Table', startrow=3, startcol=vm7_start_col, header=False, index=True)
+
             # Merge cells for vm7 label
             worksheet.merge_range(0, vm7_start_col, 0, vm7_start_col + 1, 'vm7', workbook.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'fg_color': '#ADD8E6'}))
             # Set headers for 'count' and 'value'
-            worksheet.write(1, vm7_start_col, 'count', workbook.add_format({'bold': True, 'bg_color': '#D7E4BC'}))
-            worksheet.write(1, vm7_start_col + 1, 'value', workbook.add_format({'bold': True, 'bg_color': '#D7E4BC'}))
+            worksheet.write(2, vm7_start_col, 'count', workbook.add_format({'bold': True, 'bg_color': '#D7E4BC'}))
+            worksheet.write(2, vm7_start_col + 1, 'value', workbook.add_format({'bold': True, 'bg_color': '#D7E4BC'}))
 
             for col_num, value in enumerate(pivot_table.columns.values):
                 worksheet.write(0, col_num, value, workbook.add_format({'bold': True, 'bg_color': '#ADD8E6', 'border': 1}))
                 worksheet.set_column(col_num, col_num, 18)  # Adjust column width as needed
 
             for i in range(1, len(pivot_table.columns) + 1):
-                worksheet.write(len(pivot_table) + 2, i, pivot_table.iloc[-1, i - 1], workbook.add_format({'bold': True, 'num_format': '#,##0', 'bg_color': '#ADD8E6'}))
+                worksheet.write(len(pivot_table) + 3, i, pivot_table.iloc[-1, i - 1], workbook.add_format({'bold': True, 'num_format': '#,##0', 'bg_color': '#ADD8E6'}))
 
     except Exception as e:
         print(f"Error processing the CSV file: {e}")
