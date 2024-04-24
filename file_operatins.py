@@ -19,7 +19,7 @@ for instrument_type in instrument_types:
     filtered_data = data[data['INSTRUMENT_TYPE'] == instrument_type]
     
     # Retrieve sub-products for the current instrument type
-    sub_products = filtered_data['PRODUCT_STRUCTURE_TYPE'].unique()
+    sub_products = filtered_data['PRODUCT_STRUCTURE_TYPE'].astype(str).unique()  # Convert to string
     
     # Add instrument type and sub-products to dropdown list
     dropdown_list.append(instrument_type)
