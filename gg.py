@@ -1,13 +1,11 @@
 pivot_table = pd.pivot_table(
-    filtered_data,
-    values=['asb_exchange_amount', 'COUNTERP_TRADEPARTYID'],
-    index=['Counterparties Type'],
+    merged_df,
+    values=['amount', 'COUNTERP_TRADEPARTYID'],
+    index=['bank_name'],
     aggfunc={
-        'asb_exchange_amount': np.sum,
+        'amount': np.sum,
         'COUNTERP_TRADEPARTYID': 'count'
     },
     margins=True,
     margins_name='Grand Total'
 )
-
-print(pivot_table)
