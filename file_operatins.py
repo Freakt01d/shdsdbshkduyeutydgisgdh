@@ -24,25 +24,26 @@ pivot_table = pd.pivot_table(
     margins_name='Grand Total'
 )
 
+# Flatten the MultiIndex to make it suitable for Excel grouping
+pivot_table.reset_index(inplace=True)
+pivot_table.sort_values(by=['INSTRUMENT_TYPE', 'PRODUCT_STRUCTURE_TYPE'], inplace=True)
+
 # Export the pivot table to Excel
 output_file = 'detailed_pivot_table.xlsx'
 with pd.ExcelWriter(output_file, engine='xlsxwriter') as writer:
-    pivot_table.to_excel(writer, sheet_name='Detailed View')
+    pivot_table.to_excel(writer, sheet_name='Detailed View', index=False)
 
     # Access the workbook and the worksheet
     workbook = writer.book
     worksheet = writer.sheets['Detailed View']
 
-    # Optional: Set format for the header
+    # Apply a format for clear visibility
     header_format = workbook.add_format({'bold': True, 'align': 'center', 'bg_color': '#D7E4BC'})
     for col_num, value in enumerate(pivot_table.columns.values):
-        worksheet.write(0, col_num + 1, value, header_format)
+        worksheet.write(0, col_num, value, header_format)
 
-    # Optional: Auto-filter to easily hide/unhide rows in Excel
-    worksheet.autofilter(0, 0, len(pivot_table), len(pivot_table.columns) - 1)
-
-    # Optional: Set the column width
+    # Set the column width
     worksheet.set_column('A:B', 20)
     worksheet.set_column('C:D', 18)
 
-# Note: Users will need to manually hide/unhide rows in Excel.
+# Users will need to manually set up grouping in Excel to create a collapsible structure.
