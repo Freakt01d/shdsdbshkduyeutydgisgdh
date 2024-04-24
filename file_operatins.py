@@ -41,4 +41,3 @@ with pd.ExcelWriter('output_pivot_table_with_totals.xlsx', engine='xlsxwriter') 
     # Apply number formatting to vm7_data
     for col_num, col_name in enumerate(vm7_data.columns):
         worksheet.set_column(vm7_start_col + col_num, vm7_start_col + col_num, 18, percentage_format)
-        
