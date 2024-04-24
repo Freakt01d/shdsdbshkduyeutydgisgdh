@@ -28,22 +28,20 @@ pivot_table = pd.pivot_table(
 pivot_table.reset_index(inplace=True)
 pivot_table.sort_values(by=['INSTRUMENT_TYPE', 'PRODUCT_STRUCTURE_TYPE'], inplace=True)
 
-# Export the pivot table to Excel
-output_file = 'detailed_pivot_table.xlsx'
+# Create a new DataFrame with instrument types and sub-products listed in a single column
+dropdown_list = []
+for instrument_type, group in pivot_table.groupby('INSTRUMENT_TYPE'):
+    dropdown_list.append(instrument_type)
+    dropdown_list.extend(['  ' + sub_product for sub_product in group['PRODUCT_STRUCTURE_TYPE']])
+
+# Export the pivot table to Excel with the dropdown list
+output_file = 'pivot_table_with_dropdown.xlsx'
 with pd.ExcelWriter(output_file, engine='xlsxwriter') as writer:
-    pivot_table.to_excel(writer, sheet_name='Detailed View', index=False)
+    # Create a DataFrame with dropdown list
+    dropdown_df = pd.DataFrame({'Dropdown': dropdown_list})
+    dropdown_df.to_excel(writer, sheet_name='Dropdown List', index=False)
 
-    # Access the workbook and the worksheet
-    workbook = writer.book
-    worksheet = writer.sheets['Detailed View']
+    # Write the pivot table to a separate sheet
+    pivot_table.to_excel(writer, sheet_name='Pivot Table', index=False)
 
-    # Apply a format for clear visibility
-    header_format = workbook.add_format({'bold': True, 'align': 'center', 'bg_color': '#D7E4BC'})
-    for col_num, value in enumerate(pivot_table.columns.values):
-        worksheet.write(0, col_num, value, header_format)
-
-    # Set the column width
-    worksheet.set_column('A:B', 20)
-    worksheet.set_column('C:D', 18)
-
-# Users will need to manually set up grouping in Excel to create a collapsible structure.
+# Users can manually reference the dropdown list and select the instrument type or sub-product.
