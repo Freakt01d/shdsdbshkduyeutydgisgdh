@@ -1,41 +1,40 @@
 import pandas as pd
+from tkinter import Tk, Button, filedialog, simpledialog
 
-# Sample DataFrames
-data_csv = pd.DataFrame({
-    'common_key_column': [1, 2, 1, 2],
-    'instrument_type': ['Bond', 'Stock', 'Bond', 'Stock'],
-    'customer_type': ['customer', 'non_customer', 'customer', 'non_customer'],
-    'trade_id': [101, 102, 103, 104],
-    'amount': [1000, 2000, 1500, 2500]
-})
+def load_data():
+    # Open a dialog to select multiple files
+    file_paths = filedialog.askopenfilenames(filetypes=[("CSV files", "*.csv")])
+    
+    if file_paths:
+        dfs = []  # List to hold dataframes
+        
+        # Loop through all selected files
+        for file_path in file_paths:
+            # Read each CSV file and append to the list
+            df = pd.read_csv(file_path)
+            dfs.append(df)
+        
+        # Concatenate all dataframes
+        combined_df = pd.concat(dfs, ignore_index=True)
+        
+        # Ask user for file name to save the combined DataFrame
+        save_path = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV files", "*.csv")])
+        if save_path:
+            # Save the DataFrame to a CSV file
+            combined_df.to_csv(save_path, index=False)
+            print(f"Data saved to {save_path}.")
+        else:
+            print("Save cancelled.")
+    else:
+        print("No files selected.")
 
-data_xlsx = pd.DataFrame({
-    'common_key_column': [1, 2],
-    'other_info': [200, 400]
-})
+# Set up the main application window
+root = Tk()
+root.title("File Loader")
 
-# Merge DataFrames
-merged_data = pd.merge(data_csv, data_xlsx, on='common_key_column', how='inner')
+# Button to load data
+load_button = Button(root, text="Select Files and Load Data", command=load_data)
+load_button.pack(pady=20)
 
-# Create Pivot Table
-pivot_table = pd.pivot_table(merged_data,
-                             values=['trade_id', 'amount'],
-                             index='instrument_type',
-                             columns='customer_type',
-                             aggfunc={'trade_id': pd.Series.nunique, 'amount': 'sum'},
-                             fill_value=0)
-
-# Adding new total columns for each instrument_type
-pivot_table['Total_trades'] = pivot_table[('trade_id', 'customer')] + pivot_table[('trade_id', 'non_customer')]
-pivot_table['Total_amount'] = pivot_table[('amount', 'customer')] + pivot_table[('amount', 'non_customer')]
-
-# Add grand total row at the bottom
-pivot_table.loc['Grand Total'] = pivot_table.sum()
-
-# Optionally, rename the columns to be more descriptive if needed
-pivot_table.columns = [f'{col[0]}_{col[1]}' for col in pivot_table.columns]
-
-# Save the pivot table to an Excel file
-with pd.ExcelWriter('output_pivot_table_with_totals.xlsx') as writer:
-    pivot_table.to_excel(writer, sheet_name='Pivot Table with Totals')
-   
+# Run the GUI event loop
+root.mainloop()
