@@ -1,66 +1,116 @@
-import tkinter as tk
-from tkinter import filedialog, messagebox
-import file_operations
+import React, { useState } from "react";
 
-# Define global variables to store file paths
-csv_path = ""
-xlsx_path = ""
-output_dir = ""
+const BBTAnalyzer = () => {
+  const initialRows = [
+    { id: 4198, workflow: "COLLAT", status: "Passed", color: "bg-green-500", validated: false },
+    { id: 4199, workflow: "MIFID-1", status: "Passed", color: "bg-green-500", validated: false },
+    { id: 4200, workflow: "DFA", status: "False", color: "bg-red-500", validated: false },
+    { id: 4201, workflow: "COLLAT", status: "False", color: "bg-red-500", validated: false },
+    { id: 4202, workflow: "IFU", status: "Passed", color: "bg-green-500", validated: false },
+    { id: 4203, workflow: "DFA", status: "Passed", color: "bg-green-500", validated: false },
+    { id: 4204, workflow: "FATCA_ETNC", status: "Passed", color: "bg-green-500", validated: false },
+    { id: 4205, workflow: "DFA", status: "Passed", color: "bg-green-500", validated: false },
+    { id: 4206, workflow: "COLLAT", status: "Passed", color: "bg-green-500", validated: false },
+    { id: 4207, workflow: "MIFID-1", status: "Passed", color: "bg-green-500", validated: false },
+  ];
 
-def load_file(file_type, entry_widget):
-    filetypes = (('CSV files', '*.csv') if file_type == 'csv' else ('Excel files', '*.xlsx'), ('All files', '*.*'))
-    filepath = filedialog.askopenfilename(title=f"Open {file_type.upper()} File", filetypes=filetypes)
-    if filepath:
-        entry_widget.delete(0, tk.END)
-        entry_widget.insert(0, filepath)
-        if file_type == 'csv':
-            global csv_path
-            csv_path = filepath
-        else:
-            global xlsx_path
-            xlsx_path = filepath
+  const [showTable, setShowTable] = useState(false);
+  const [rows, setRows] = useState(initialRows);
 
-def select_destination(entry_widget):
-    folder_path = filedialog.askdirectory()
-    if folder_path:
-        entry_widget.delete(0, tk.END)
-        entry_widget.insert(0, folder_path)
-        global output_dir
-        output_dir = folder_path
+  const handleValidate = (index) => {
+    setRows((prevRows) =>
+      prevRows.map((row, i) =>
+        i === index
+          ? {
+              ...row,
+              validated: !row.validated,
+              status: !row.validated ? "Validated" : initialRows.find(r => r.id === row.id)?.status || "Passed",
+              color: !row.validated ? "bg-yellow-500" : (initialRows.find(r => r.id === row.id)?.color || "bg-green-500"),
+            }
+          : row
+      )
+    );
+  };
 
-def process_files():
-    global csv_path, xlsx_path, output_dir
-    if csv_path and xlsx_path and output_dir:
-        try:
-            file_operations.file_operations(csv_path, xlsx_path, output_dir)
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to process the files: {e}")
-    else:
-        messagebox.showwarning("Warning", "Please select both CSV and XLSX files and the output directory.")
+  const totalCount = rows.length;
+  const validatedCount = rows.filter(row => row.validated).length;
+  const passedCount = rows.filter(row => row.status === "Passed" || row.status === "Validated" && initialRows.find(r => r.id === row.id)?.status === "Passed").length;
+  const failedCount = rows.filter(row => row.status === "False" || row.status === "Validated" && initialRows.find(r => r.id === row.id)?.status === "False").length;
 
-def main_app():
-    root = tk.Tk()
-    root.title("File Processor")
+  return (
+    <div className="p-4 bg-gray-100 h-screen">
+      <div className="flex items-center space-x-2 mb-4">
+        <select className="border p-2 rounded">
+          <option>ISO_25.01.31.1</option>
+        </select>
+        <button className="bg-blue-500 text-white px-4 py-2 rounded" onClick={() => setShowTable(true)}>
+          Start Comparison
+        </button>
+        <button className="bg-gray-500 text-white px-4 py-2 rounded">View Report</button>
+        <button className="bg-gray-500 text-white px-4 py-2 rounded">Email Report</button>
+        <div className="w-8"></div>
+        <button className="bg-gray-500 text-white px-4 py-2 rounded">Initiate New BBT</button>
+        <button className="bg-gray-500 text-white px-4 py-2 rounded">Add BBT</button>
+      </div>
 
-    tk.Label(root, text="Input CSV File:").grid(row=0, column=0, sticky='w')
-    tk.Label(root, text="Input XLSX File:").grid(row=1, column=0, sticky='w')
-    tk.Label(root, text="Output Directory:").grid(row=2, column=0, sticky='w')
+      {showTable && (
+        <div className="bg-white p-4 rounded shadow-md overflow-auto">
+          <table className="w-full border-collapse border text-left">
+            <thead>
+              <tr className="bg-gray-200">
+                <th className="border p-2">ID</th>
+                <th className="border p-2">Workflow</th>
+                <th className="border p-2">Is Active</th>
+                <th className="border p-2">Status</th>
+                <th className="border p-2">View</th>
+                <th className="border p-2">Validate</th>
+                <th className="border p-2">Description</th>
+                <th className="border p-2">Comment</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, index) => (
+                <tr key={row.id} className="border">
+                  <td className="border p-2">{row.id}</td>
+                  <td className="border p-2">{row.workflow}</td>
+                  <td className="border p-2"><input type="checkbox" checked readOnly /></td>
+                  <td className={`border p-2 ${row.color} text-white`}>{row.status}</td>
+                  <td className="border p-2"><button className="bg-gray-300 px-2 py-1 rounded">View</button></td>
+                  <td className="border p-2">
+                    <input type="checkbox" checked={row.validated} onChange={() => handleValidate(index)} />
+                  </td>
+                  <td className="border p-2">Description here</td>
+                  <td className="border p-2">Comment here</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-    csv_entry = tk.Entry(root, width=50)
-    csv_entry.grid(row=0, column=1, padx=5, pady=5, sticky='ew')
+      <div className="mt-4 flex justify-between">
+        <div className="w-1/4 bg-white p-4 rounded shadow-md">
+          <h3 className="font-bold">Filter</h3>
+          <div>
+            <label><input type="checkbox" /> Passed</label><br/>
+            <label><input type="checkbox" /> Failed</label><br/>
+            <label><input type="checkbox" /> Validated</label>
+          </div>
+        </div>
 
-    xlsx_entry = tk.Entry(root, width=50)
-    xlsx_entry.grid(row=1, column=1, padx=5, pady=5, sticky='ew')
+        <div className="w-1/4 bg-white p-4 rounded shadow-md">
+          <h3 className="font-bold">Statistics</h3>
+          <p>Total Count: {totalCount}</p>
+          <p>Passed Count: {passedCount}</p>
+          <p>Failed Count: {failedCount}</p>
+          <p>Validated Count: {validatedCount}</p>
+          <p>Executed on: 1/31/2025 9:43 AM</p>
+          <button className="bg-blue-500 text-white px-4 py-2 rounded w-full mt-2">Update Active Flag to DB</button>
+          <button className="bg-gray-500 text-white px-4 py-2 rounded w-full mt-2">Save and Export Report</button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
-    out_entry = tk.Entry(root, width=50)
-    out_entry.grid(row=2, column=1, padx=5, pady=5, sticky='ew')
-
-    tk.Button(root, text='Select CSV File', command=lambda: load_file('csv', csv_entry)).grid(row=0, column=2, padx=5, pady=5)
-    tk.Button(root, text='Select Xlsx File', command=lambda: load_file('xlsx', xlsx_entry)).grid(row=1, column=2, padx=5, pady=5)
-    tk.Button(root, text='Select Destination', command=lambda: select_destination(out_entry)).grid(row=2, column=2, padx=5, pady=5)
-
-    tk.Button(root, text='Process Files', command=process_files).grid(row=3, column=2, padx=5, pady=5)
-    root.mainloop()
-
-if __name__ == "__main__":
-    main_app()
+export default BBTAnalyzer;
