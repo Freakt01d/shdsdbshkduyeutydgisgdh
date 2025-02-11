@@ -1,0 +1,102 @@
+/* BBTAnalyzer.css */
+.container {
+  padding: 1rem;
+  background-color: #f3f4f6;
+  height: 100vh;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.controls select {
+  border: 1px solid #ccc;
+  padding: 0.5rem;
+  border-radius: 0.25rem;
+}
+
+.controls button {
+  background-color: #3b82f6;
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 0.25rem;
+  border: none;
+  cursor: pointer;
+}
+
+.controls button.gray {
+  background-color: #6b7280;
+}
+
+.table-container {
+  background-color: white;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.table th, .table td {
+  border: 1px solid #ddd;
+  padding: 0.5rem;
+}
+
+.table th {
+  background-color: #f3f4f6;
+}
+
+.table .bg-green-500 {
+  background-color: #10b981;
+  color: white;
+}
+
+.table .bg-red-500 {
+  background-color: #ef4444;
+  color: white;
+}
+
+.table .bg-yellow-500 {
+  background-color: #f59e0b;
+  color: white;
+}
+
+.table button {
+  background-color: #d1d5db;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  border: none;
+  cursor: pointer;
+}
+
+.stats {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 1rem;
+}
+
+.stats .filter, .stats .statistics {
+  width: 24%;
+  background-color: white;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.stats h3 {
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+}
+
+.stats button {
+  width: 100%;
+  margin-top: 0.5rem;
+}
