@@ -1,7 +1,16 @@
 import React, { useState } from "react";
 
-const BBTAnalyzer = () => {
-  const initialRows = [
+// Define the row type
+interface Row {
+  id: number;
+  workflow: string;
+  status: string;
+  color: string;
+  validated: boolean;
+}
+
+const BBTAnalyzer: React.FC = () => {
+  const initialRows: Row[] = [
     { id: 4198, workflow: "COLLAT", status: "Passed", color: "bg-green-500", validated: false },
     { id: 4199, workflow: "MIFID-1", status: "Passed", color: "bg-green-500", validated: false },
     { id: 4200, workflow: "DFA", status: "False", color: "bg-red-500", validated: false },
@@ -15,17 +24,17 @@ const BBTAnalyzer = () => {
   ];
 
   const [showTable, setShowTable] = useState(false);
-  const [rows, setRows] = useState(initialRows);
+  const [rows, setRows] = useState<Row[]>(initialRows);
 
-  const handleValidate = (index) => {
+  const handleValidate = (index: number) => {
     setRows((prevRows) =>
       prevRows.map((row, i) =>
         i === index
           ? {
               ...row,
               validated: !row.validated,
-              status: !row.validated ? "Validated" : initialRows.find(r => r.id === row.id)?.status || "Passed",
-              color: !row.validated ? "bg-yellow-500" : (initialRows.find(r => r.id === row.id)?.color || "bg-green-500"),
+              status: !row.validated ? "Validated" : initialRows.find((r) => r.id === row.id)?.status || "Passed",
+              color: !row.validated ? "bg-yellow-500" : initialRows.find((r) => r.id === row.id)?.color || "bg-green-500",
             }
           : row
       )
@@ -33,12 +42,12 @@ const BBTAnalyzer = () => {
   };
 
   const totalCount = rows.length;
-  const validatedCount = rows.filter(row => row.validated).length;
-  const passedCount = rows.filter(row => row.status === "Passed" || row.status === "Validated" && initialRows.find(r => r.id === row.id)?.status === "Passed").length;
-  const failedCount = rows.filter(row => row.status === "False" || row.status === "Validated" && initialRows.find(r => r.id === row.id)?.status === "False").length;
+  const validatedCount = rows.filter((row) => row.validated).length;
+  const passedCount = rows.filter((row) => row.status === "Passed" || (row.status === "Validated" && initialRows.find((r) => r.id === row.id)?.status === "Passed")).length;
+  const failedCount = rows.filter((row) => row.status === "False" || (row.status === "Validated" && initialRows.find((r) => r.id === row.id)?.status === "False")).length;
 
   return (
-    <div className="p-4 bg-gray-100 h-screen">
+    <div className="p-4 bg-gray-100 min-h-screen">
       <div className="flex items-center space-x-2 mb-4">
         <select className="border p-2 rounded">
           <option>ISO_25.01.31.1</option>
@@ -46,11 +55,6 @@ const BBTAnalyzer = () => {
         <button className="bg-blue-500 text-white px-4 py-2 rounded" onClick={() => setShowTable(true)}>
           Start Comparison
         </button>
-        <button className="bg-gray-500 text-white px-4 py-2 rounded">View Report</button>
-        <button className="bg-gray-500 text-white px-4 py-2 rounded">Email Report</button>
-        <div className="w-8"></div>
-        <button className="bg-gray-500 text-white px-4 py-2 rounded">Initiate New BBT</button>
-        <button className="bg-gray-500 text-white px-4 py-2 rounded">Add BBT</button>
       </div>
 
       {showTable && (
@@ -62,10 +66,7 @@ const BBTAnalyzer = () => {
                 <th className="border p-2">Workflow</th>
                 <th className="border p-2">Is Active</th>
                 <th className="border p-2">Status</th>
-                <th className="border p-2">View</th>
                 <th className="border p-2">Validate</th>
-                <th className="border p-2">Description</th>
-                <th className="border p-2">Comment</th>
               </tr>
             </thead>
             <tbody>
@@ -73,14 +74,13 @@ const BBTAnalyzer = () => {
                 <tr key={row.id} className="border">
                   <td className="border p-2">{row.id}</td>
                   <td className="border p-2">{row.workflow}</td>
-                  <td className="border p-2"><input type="checkbox" checked readOnly /></td>
-                  <td className={`border p-2 ${row.color} text-white`}>{row.status}</td>
-                  <td className="border p-2"><button className="bg-gray-300 px-2 py-1 rounded">View</button></td>
+                  <td className="border p-2">
+                    <input type="checkbox" checked readOnly />
+                  </td>
+                  <td className={`border p-2 text-white ${row.color}`}>{row.status}</td>
                   <td className="border p-2">
                     <input type="checkbox" checked={row.validated} onChange={() => handleValidate(index)} />
                   </td>
-                  <td className="border p-2">Description here</td>
-                  <td className="border p-2">Comment here</td>
                 </tr>
               ))}
             </tbody>
@@ -90,23 +90,11 @@ const BBTAnalyzer = () => {
 
       <div className="mt-4 flex justify-between">
         <div className="w-1/4 bg-white p-4 rounded shadow-md">
-          <h3 className="font-bold">Filter</h3>
-          <div>
-            <label><input type="checkbox" /> Passed</label><br/>
-            <label><input type="checkbox" /> Failed</label><br/>
-            <label><input type="checkbox" /> Validated</label>
-          </div>
-        </div>
-
-        <div className="w-1/4 bg-white p-4 rounded shadow-md">
           <h3 className="font-bold">Statistics</h3>
           <p>Total Count: {totalCount}</p>
           <p>Passed Count: {passedCount}</p>
           <p>Failed Count: {failedCount}</p>
           <p>Validated Count: {validatedCount}</p>
-          <p>Executed on: 1/31/2025 9:43 AM</p>
-          <button className="bg-blue-500 text-white px-4 py-2 rounded w-full mt-2">Update Active Flag to DB</button>
-          <button className="bg-gray-500 text-white px-4 py-2 rounded w-full mt-2">Save and Export Report</button>
         </div>
       </div>
     </div>
