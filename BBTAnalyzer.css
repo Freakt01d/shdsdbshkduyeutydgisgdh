@@ -1,19 +1,47 @@
-import React from "react";
-import "./BBTDetailView.css";
+.container {
+  padding: 20px;
+  background-color: #f9f9f9;
+  height: 100vh;
+}
 
-const BBTDetailView = ({ data, onClose }) => {
-  if (!data) return null;
+.controls {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
 
-  return (
-    <div className="bbt-detail-view">
-      <button onClick={onClose} className="back-button">Back</button>
-      <h2>BBT Details for {data.workflow}</h2>
-      <p><strong>ID:</strong> {data.id}</p>
-      <p><strong>Status:</strong> {data.status}</p>
-      <p><strong>Validated:</strong> {data.validated ? "Yes" : "No"}</p>
-      <p><strong>Description:</strong> Some detailed info about {data.workflow}</p>
-    </div>
-  );
-};
+.table-container {
+  background: white;
+  padding: 10px;
+  border-radius: 8px;
+  box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1);
+}
 
-export default BBTDetailView;
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th, .table td {
+  border: 1px solid #ddd;
+  padding: 10px;
+}
+
+.table th {
+  background-color: #f1f1f1;
+}
+
+.bg-green-500 {
+  background-color: #4caf50;
+  color: white;
+}
+
+.bg-red-500 {
+  background-color: #f44336;
+  color: white;
+}
+
+.bg-yellow-500 {
+  background-color: #ffeb3b;
+  color: black;
+}
