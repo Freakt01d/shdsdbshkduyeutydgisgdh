@@ -1,73 +1,19 @@
-import "./BBTView.css";
+import React from "react";
+import "./BBTDetailView.css";
 
-.bbt-view-container {
-  width: 80%;
-  margin: auto;
-  text-align: center;
-}
+const BBTDetailView = ({ data, onClose }) => {
+  if (!data) return null;
 
-.bbt-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
+  return (
+    <div className="bbt-detail-view">
+      <button onClick={onClose} className="back-button">Back</button>
+      <h2>BBT Details for {data.workflow}</h2>
+      <p><strong>ID:</strong> {data.id}</p>
+      <p><strong>Status:</strong> {data.status}</p>
+      <p><strong>Validated:</strong> {data.validated ? "Yes" : "No"}</p>
+      <p><strong>Description:</strong> Some detailed info about {data.workflow}</p>
+    </div>
+  );
+};
 
-.bbt-buttons button {
-  margin: 5px;
-  padding: 10px 15px;
-  border: none;
-  background-color: #007bff;
-  color: white;
-  cursor: pointer;
-  border-radius: 5px;
-}
-
-.bbt-buttons button:hover {
-  background-color: #0056b3;
-}
-
-.bbt-tabs {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 20px;
-}
-
-.bbt-tab {
-  padding: 10px 15px;
-  border: none;
-  cursor: pointer;
-  background-color: #f0f0f0;
-  border-radius: 5px;
-  margin: 0 5px;
-}
-
-.bbt-tab.active {
-  background-color: #007bff;
-  color: white;
-}
-
-.bbt-content {
-  padding: 20px;
-  border: 1px solid #ddd;
-  background-color: #fafafa;
-  min-height: 100px;
-}
-
-.bbt-footer {
-  margin-top: 20px;
-}
-
-.bbt-footer-button {
-  margin: 5px;
-  padding: 10px 15px;
-  border: none;
-  background-color: #28a745;
-  color: white;
-  cursor: pointer;
-  border-radius: 5px;
-}
-
-.bbt-footer-button:hover {
-  background-color: #218838;
-}
+export default BBTDetailView;
