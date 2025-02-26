@@ -1,36 +1,26 @@
-import React from "react";
-import "./BBTDetailView.css";
-
-interface BBTData {
-  id: number;
-  workflow: string;
-  status: string;
-  color: string;
-  validated: boolean;
-  description?: string;
-  comment?: string;
+.detail-view {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: white;
+  padding: 20px;
+  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  width: 300px;
 }
 
-interface BBTDetailViewProps {
-  data: BBTData;
-  onClose: () => void;
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
-const BBTDetailView: React.FC<BBTDetailViewProps> = ({ data, onClose }) => {
-  return (
-    <div className="detail-view">
-      <div className="header">
-        <h2>BBT Detail View</h2>
-        <button onClick={onClose} className="close-btn">X</button>
-      </div>
-      <p><strong>ID:</strong> {data.id}</p>
-      <p><strong>Workflow:</strong> {data.workflow}</p>
-      <p><strong>Status:</strong> <span className={data.color}>{data.status}</span></p>
-      <p><strong>Description:</strong> {data.description || "N/A"}</p>
-      <p><strong>Comment:</strong> {data.comment || "N/A"}</p>
-      <button className="close-btn" onClick={onClose}>Close</button>
-    </div>
-  );
-};
-
-export default BBTDetailView;
+.close-btn {
+  background-color: red;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  cursor: pointer;
+  border-radius: 4px;
+}
