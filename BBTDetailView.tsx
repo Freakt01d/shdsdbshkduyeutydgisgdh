@@ -22,25 +22,35 @@ const BBTView: React.FC = () => {
     fetchFile("actualResponse", setActualResponse);
   }, []);
 
-  // Compute the diff and convert to text format
+  // Compute the diff and format as text
   useEffect(() => {
     if (expectedResponse && actualResponse) {
       const diff = diffWords(expectedResponse, actualResponse);
 
       let expectedText = "";
       let actualText = "";
+      let lastRemoved = ""; // Track removed text to match with the next added part
 
       diff.forEach((part) => {
         if (part.removed) {
+          lastRemoved = part.value; // Store removed text
           expectedText += `<<removed>>${part.value}<</removed>>`; // Mark removed text
+        } else if (part.added) {
+          if (lastRemoved) {
+            // If we previously removed something, it's a change
+            expectedText = expectedText.replace(
+              `<<removed>>${lastRemoved}<</removed>>`,
+              `<<changed>>${lastRemoved}<</changed>>`
+            ); // Convert removed to changed in Expected
+            actualText += `<<changed>>${part.value}<</changed>>`; // Show added part as changed in Actual
+            lastRemoved = ""; // Reset tracking
+          } else {
+            actualText += `<<added>>${part.value}<</added>>`; // Mark as added if no prior removal
+          }
         } else {
-          expectedText += part.value; // Keep unchanged text
-        }
-
-        if (part.added) {
-          actualText += `<<added>>${part.value}<</added>>`; // Mark added text
-        } else {
-          actualText += part.value; // Keep unchanged text
+          expectedText += part.value;
+          actualText += part.value;
+          lastRemoved = ""; // Reset tracking
         }
       });
 
