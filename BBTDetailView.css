@@ -1,29 +1,29 @@
-.diff-box {
-  padding: 10px;
-  white-space: pre-wrap;
-  border: 1px solid #ccc;
-  overflow-x: auto;
+.xml-box {
   font-family: monospace;
+  padding: 10px;
+  border: 1px solid #ccc;
+  white-space: pre-wrap; /* Keeps formatting */
+  word-wrap: break-word; /* Prevents overflow */
+  background-color: #1e1e1e; /* Dark background for contrast */
+  color: white; /* Default text color */
 }
 
-.expected {
-  background-color: #f8f9fa;
+.xml-box span {
+  padding: 2px 4px;
+  border-radius: 4px;
 }
 
-.actual {
-  background-color: #ffffff;
+.xml-box .added {
+  background-color: yellow;
+  color: black;
 }
 
-/* Highlighting styles */
-.removed {
-  background-color: #ffcccc; /* Light red for removed text */
-  text-decoration: line-through;
+.xml-box .removed {
+  background-color: red;
+  color: white;
 }
 
-.added {
-  background-color: #ccffcc; /* Light green for added text */
-}
-
-.changed {
-  background-color: #ffff99; /* Light yellow for modified text */
+.xml-box .changed {
+  background-color: lightgreen;
+  color: black;
 }
