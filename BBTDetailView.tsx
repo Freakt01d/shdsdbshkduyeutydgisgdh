@@ -1,36 +1,37 @@
-import React from "react";
-import "./BBTDetailView.css";
+import React, { useState, useEffect } from "react";
 
-interface BBTData {
-  id: number;
-  workflow: string;
-  status: string;
-  color: string;
-  validated: boolean;
-  description?: string;
-  comment?: string;
-}
+const BBTView: React.FC = () => {
+  const [file1, setFile1] = useState("");
+  const [file2, setFile2] = useState("");
+  const [file3, setFile3] = useState("");
+  const [file4, setFile4] = useState("");
+  const [file5, setFile5] = useState("");
 
-interface BBTDetailViewProps {
-  data: BBTData;
-  onClose: () => void;
-}
+  // Function to fetch and set text for a given file
+  const fetchFile = (fileName: string, setFileContent: React.Dispatch<React.SetStateAction<string>>) => {
+    fetch(`/xml/${fileName}.txt`)
+      .then((response) => response.text())
+      .then((data) => setFileContent(data))
+      .catch((error) => console.error(`Error fetching ${fileName}.txt:`, error));
+  };
 
-const BBTDetailView: React.FC<BBTDetailViewProps> = ({ data, onClose }) => {
+  useEffect(() => {
+    fetchFile("file1", setFile1);
+    fetchFile("file2", setFile2);
+    fetchFile("file3", setFile3);
+    fetchFile("file4", setFile4);
+    fetchFile("file5", setFile5);
+  }, []);
+
   return (
-    <div className="detail-view">
-      <div className="header">
-        <h2>BBT Detail View</h2>
-        <button onClick={onClose} className="close-btn">X</button>
-      </div>
-      <p><strong>ID:</strong> {data.id}</p>
-      <p><strong>Workflow:</strong> {data.workflow}</p>
-      <p><strong>Status:</strong> <span className={data.color}>{data.status}</span></p>
-      <p><strong>Description:</strong> {data.description || "N/A"}</p>
-      <p><strong>Comment:</strong> {data.comment || "N/A"}</p>
-      <button className="close-btn" onClick={onClose}>Close</button>
+    <div className="bbt-view">
+      <textarea className="xml-box" readOnly value={file1} />
+      <textarea className="xml-box" readOnly value={file2} />
+      <textarea className="xml-box" readOnly value={file3} />
+      <textarea className="xml-box" readOnly value={file4} />
+      <textarea className="xml-box" readOnly value={file5} />
     </div>
   );
 };
 
-export default BBTDetailView;
+export default BBTView;
