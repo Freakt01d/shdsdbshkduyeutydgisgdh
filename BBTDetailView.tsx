@@ -5,7 +5,8 @@ import "./BBTView.scss";
 const BBTView: React.FC = () => {
   const [expectedResponse, setExpectedResponse] = useState("");
   const [actualResponse, setActualResponse] = useState("");
-  const [diffResult, setDiffResult] = useState<JSX.Element[]>([]);
+  const [expectedDiff, setExpectedDiff] = useState<JSX.Element[]>([]);
+  const [actualDiff, setActualDiff] = useState<JSX.Element[]>([]);
 
   // Fetch file content
   const fetchFile = (fileName: string, setFileContent: React.Dispatch<React.SetStateAction<string>>) => {
@@ -25,19 +26,20 @@ const BBTView: React.FC = () => {
   useEffect(() => {
     if (expectedResponse && actualResponse) {
       const diff = diffWords(expectedResponse, actualResponse);
-      const formattedDiff = diff.map((part, index) => {
-        let color = "black";
-        if (part.added) color = "yellow"; // Added text
-        if (part.removed) color = "red"; // Removed text
-        if (!part.added && !part.removed && expectedResponse !== actualResponse) color = "green"; // Changed text
 
-        return (
-          <span key={index} style={{ backgroundColor: color }}>
-            {part.value}
-          </span>
-        );
+      // Process Expected and Actual Response separately
+      const expectedFormatted = diff.map((part, index) => {
+        if (part.removed) return <span key={index} style={{ backgroundColor: "red" }}>{part.value}</span>; // Removed text
+        return <span key={index}>{part.value}</span>; // Unchanged or changed (still shown)
       });
-      setDiffResult(formattedDiff);
+
+      const actualFormatted = diff.map((part, index) => {
+        if (part.added) return <span key={index} style={{ backgroundColor: "yellow" }}>{part.value}</span>; // Added text
+        return <span key={index}>{part.value}</span>; // Unchanged or changed (still shown)
+      });
+
+      setExpectedDiff(expectedFormatted);
+      setActualDiff(actualFormatted);
     }
   }, [expectedResponse, actualResponse]);
 
@@ -45,7 +47,14 @@ const BBTView: React.FC = () => {
     <div className="bbt-view">
       <h3>Response Comparison</h3>
       <div className="diff-container">
-        {diffResult.length > 0 ? diffResult : <p>No differences found.</p>}
+        <div>
+          <h4>Expected Response</h4>
+          <div className="xml-box">{expectedDiff}</div>
+        </div>
+        <div>
+          <h4>Actual Response</h4>
+          <div className="xml-box">{actualDiff}</div>
+        </div>
       </div>
     </div>
   );
