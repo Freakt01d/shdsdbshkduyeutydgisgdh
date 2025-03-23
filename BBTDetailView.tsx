@@ -4,30 +4,16 @@ useEffect(() => {
   if (ExpectedResponse && ActualResponse) {
     const diff = diffWords(ExpectedResponse, ActualResponse);
 
-    let expectedText = "";
-    let actualText = "";
-    let lastRemoved = ""; // Track removed text to match with added parts
+    const expectedText = diff.map((part, index) => {
+      if (part.removed) return <span key={index} style={{ backgroundColor: "red" }}>{part.value}</span>;
+      if (part.added) return <span key={index} style={{ backgroundColor: "yellow" }}>{part.value}</span>;
+      return <span key={index}>{part.value}</span>;
+    });
 
-    diff.forEach((part) => {
-      if (part.removed) {
-        lastRemoved = part.value;
-        expectedText += `<span class="removed">${part.value}</span>`;
-      } else if (part.added) {
-        if (lastRemoved) {
-          expectedText = expectedText.replace(
-            `<span class="removed">${lastRemoved}</span>`,
-            `<span class="changed">${lastRemoved}</span>`
-          );
-          actualText += `<span class="changed">${part.value}</span>`;
-          lastRemoved = "";
-        } else {
-          actualText += `<span class="added">${part.value}</span>`;
-        }
-      } else {
-        expectedText += part.value;
-        actualText += part.value;
-        lastRemoved = "";
-      }
+    const actualText = diff.map((part, index) => {
+      if (part.removed) return <span key={index} style={{ backgroundColor: "red" }}>{part.value}</span>;
+      if (part.added) return <span key={index} style={{ backgroundColor: "yellow" }}>{part.value}</span>;
+      return <span key={index}>{part.value}</span>;
     });
 
     setExpectedDiffText(expectedText);
