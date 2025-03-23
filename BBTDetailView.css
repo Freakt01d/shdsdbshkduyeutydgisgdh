@@ -1,32 +1,29 @@
 .diff-box {
-  font-family: monospace;
+  padding: 10px;
   white-space: pre-wrap;
-  padding: 10px;
   border: 1px solid #ccc;
-  width: 100%;
-  height: auto;
-  background: #f9f9f9;
-  padding: 10px;
+  overflow-x: auto;
+  font-family: monospace;
 }
 
-/* Removed text (Only in Expected Response) */
+.expected {
+  background-color: #f8f9fa;
+}
+
+.actual {
+  background-color: #ffffff;
+}
+
+/* Highlighting styles */
 .removed {
-  background-color: rgba(255, 0, 0, 0.3); /* Light red */
+  background-color: #ffcccc; /* Light red for removed text */
   text-decoration: line-through;
-  color: #a00; /* Darker red text */
 }
 
-/* Added text (Only in Actual Response) */
 .added {
-  background-color: rgba(255, 255, 0, 0.5); /* Light yellow */
-  color: #000;
-  padding: 2px 4px;
+  background-color: #ccffcc; /* Light green for added text */
 }
 
-/* Changed text (Present in both Expected & Actual) */
 .changed {
-  background-color: rgba(0, 255, 0, 0.3); /* Light green */
-  color: #000;
-  padding: 2px 4px;
-  font-weight: bold;
+  background-color: #ffff99; /* Light yellow for modified text */
 }
