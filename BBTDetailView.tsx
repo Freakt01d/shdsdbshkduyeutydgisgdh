@@ -1,33 +1,35 @@
 const processDiff = (diff: any) => {
-  let expectedText = [];
-  let actualText = [];
+  let expectedText: JSX.Element[] = [];
+  let actualText: JSX.Element[] = [];
 
-  diff.forEach((part: { added?: boolean; removed?: boolean; value: string }, index: number, arr: any[]) => {
-    if (part.removed && arr[index + 1]?.added) {
-      // Case: Modified (Appears Green in Both)
-      expectedText.push(<span key={index} className="changed">{part.value}</span>);
-      actualText.push(<span key={index} className="changed">{arr[index + 1].value}</span>);
-    } else if (part.removed) {
-      // Case: Removed (Appears in Expected Only - Red)
-      expectedText.push(<span key={index} className="removed">{part.value}</span>);
-    } else if (part.added) {
-      // Case: Added (Appears in Actual Only - Yellow)
-      actualText.push(<span key={index} className="added">{part.value}</span>);
-    } else {
-      // Case: Unchanged (Appears in Both)
-      expectedText.push(<span key={index}>{part.value}</span>);
-      actualText.push(<span key={index}>{part.value}</span>);
+  let i = 0;
+  while (i < diff.length) {
+    const part = diff[i];
+
+    // If a removal is followed by an addition, it's a change (modified).
+    if (part.removed && i + 1 < diff.length && diff[i + 1].added) {
+      expectedText.push(<span key={`exp-${i}`} className="changed">{part.value}</span>);
+      actualText.push(<span key={`act-${i}`} className="changed">{diff[i + 1].value}</span>);
+      i += 2; // Skip next part since it's already handled
+      continue;
     }
-  });
+
+    if (part.removed) {
+      // Removed text should appear only in expected (Red)
+      expectedText.push(<span key={`exp-${i}`} className="removed">{part.value}</span>);
+    } 
+    else if (part.added) {
+      // Added text should appear only in actual (Yellow)
+      actualText.push(<span key={`act-${i}`} className="added">{part.value}</span>);
+    } 
+    else {
+      // Unchanged text should appear in both
+      expectedText.push(<span key={`exp-${i}`}>{part.value}</span>);
+      actualText.push(<span key={`act-${i}`}>{part.value}</span>);
+    }
+
+    i++;
+  }
 
   return { expectedText, actualText };
 };
-
-useEffect(() => {
-  if (ExpectedResponse && ActualResponse) {
-    const diff = diffWords(ExpectedResponse, ActualResponse);
-    const { expectedText, actualText } = processDiff(diff);
-    setExpectedDiffText(expectedText);
-    setActualDiffText(actualText);
-  }
-}, [ExpectedResponse, ActualResponse]);
