@@ -1,47 +1,34 @@
-.container {
-  padding: 20px;
-  background-color: #f9f9f9;
-  height: 100vh;
-}
+using System.IO;
+using System.IO.Compression;
 
-.controls {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 20px;
+if (principalFilePath.EndsWith(".gz", StringComparison.OrdinalIgnoreCase))
+{
+    using (var source = new FileStream(principalFilePath, FileMode.Open, FileAccess.Read))
+    using (var decompressor = new GZipStream(source, CompressionMode.Decompress))
+    using (var destination = new FileStream(principalFilePath.Replace(".gz", ""), FileMode.Create, FileAccess.Write))
+    {
+        decompressor.CopyTo(destination);
+    }
 }
+else if (principalFilePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+{
+    string extractPath = Path.GetDirectoryName(principalFilePath);
+    using (var zipStream = new FileStream(principalFilePath, FileMode.Open, FileAccess.Read))
+    using (var archive = new ZipArchive(zipStream, ZipArchiveMode.Read))
+    {
+        foreach (var entry in archive.Entries)
+        {
+            if (!string.IsNullOrEmpty(entry.Name)) // Skip folders
+            {
+                string fullPath = Path.Combine(extractPath, entry.FullName);
+                Directory.CreateDirectory(Path.GetDirectoryName(fullPath));
 
-.table-container {
-  background: white;
-  padding: 10px;
-  border-radius: 8px;
-  box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.table th, .table td {
-  border: 1px solid #ddd;
-  padding: 10px;
-}
-
-.table th {
-  background-color: #f1f1f1;
-}
-
-.bg-green-500 {
-  background-color: #4caf50;
-  color: white;
-}
-
-.bg-red-500 {
-  background-color: #f44336;
-  color: white;
-}
-
-.bg-yellow-500 {
-  background-color: #ffeb3b;
-  color: black;
+                using (var entryStream = entry.Open())
+                using (var outputStream = new FileStream(fullPath, FileMode.Create, FileAccess.Write))
+                {
+                    entryStream.CopyTo(outputStream);
+                }
+            }
+        }
+    }
 }
