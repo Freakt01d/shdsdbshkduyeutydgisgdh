@@ -6,6 +6,10 @@ LiquidCrystal lcd(12, 10, 6, 5, 4, 3);
 const int flameSensorPin = 8;
 const int isdPlayEPin = 2;
 
+// Use PROGMEM to store long messages in flash memory (not SRAM)
+const char line1[] PROGMEM = "Yaaaay the candle is on, hottie. En gotta, it feels so surreal that I can call you my girl. You know my girl. So unbelievable that the girl with the most ethereal presence is with me. Six months ago I lifted you above the ground for the first time and that was the day my life changed. The enchanting beauty and the fearless character you hold can imprison any wise guy. And coming to being imprisoned, your eyes have captured me since the day I saw it under sunlight at grasslands. Thanks for everything M, I am lucky to have you in my life.";
+const char line2[] PROGMEM = "Guess you missed me huh?";
+
 void setup() {
   pinMode(flameSensorPin, INPUT);
   pinMode(isdPlayEPin, OUTPUT);
@@ -22,37 +26,44 @@ void loop() {
   bool fireDetected = digitalRead(flameSensorPin) == LOW;
 
   if (fireDetected) {
-    String topMsg = "!! FIRE ALERT !!   ";
-    String bottomMsg = "Evacuate Now!     ";
-
-    // Trigger ISD1820 playback once
     digitalWrite(isdPlayEPin, HIGH);
     delay(200);
     digitalWrite(isdPlayEPin, LOW);
 
-    marqueeScrollLoop(topMsg, bottomMsg, 250);
+    scrollMarquee(line1, line2, 200);
   } else {
-    String topMsg = "System Normal      ";
-    String bottomMsg = "Monitoring...      ";
+    const char standby1[] PROGMEM = "Waiting for you to turn on the candle M :) ";
+    const char standby2[] PROGMEM = "Waiting...............................  ";
 
-    marqueeScrollLoop(topMsg, bottomMsg, 300);
+    scrollMarquee(standby1, standby2, 300);
   }
 }
 
-// Scrolls the message from right to left and loops back
-void marqueeScrollLoop(String line1, String line2, int delayTime) {
-  // Pad spaces to the beginning and end to allow clean scroll
-  String spacer = "                "; // 16 spaces
-  String scroll1 = spacer + line1 + spacer;
-  String scroll2 = spacer + line2 + spacer;
+void scrollMarquee(const char* msg1, const char* msg2, int delayTime) {
+  const char spacer[] = "                "; // 16 spaces
+  String scroll1 = String(spacer) + String(msg1) + spacer;
+  String scroll2 = String(spacer) + String(msg2) + spacer;
 
-  for (int i = 0; i <= scroll1.length() - 16; i++) {
+  int len1 = scroll1.length() - 16;
+  int len2 = scroll2.length() - 16;
+  int maxScroll = max(len1, len2);
+
+  for (int i = 0; i <= maxScroll; i++) {
     lcd.clear();
+
     lcd.setCursor(0, 0);
-    lcd.print(scroll1.substring(i, i + 16));
+    if (i <= len1) {
+      lcd.print(scroll1.substring(i, i + 16));
+    } else {
+      lcd.print("                ");
+    }
 
     lcd.setCursor(0, 1);
-    lcd.print(scroll2.substring(i, i + 16));
+    if (i <= len2) {
+      lcd.print(scroll2.substring(i, i + 16));
+    } else {
+      lcd.print("                ");
+    }
 
     delay(delayTime);
   }
