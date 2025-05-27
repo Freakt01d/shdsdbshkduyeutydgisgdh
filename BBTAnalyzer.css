@@ -9,10 +9,9 @@ const int isdPlayEPin = 2;
 void setup() {
   pinMode(flameSensorPin, INPUT);
   pinMode(isdPlayEPin, OUTPUT);
-
   digitalWrite(isdPlayEPin, LOW);
 
-  lcd.begin(16, 2); // 16 columns, 2 rows
+  lcd.begin(16, 2);
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("System Ready");
@@ -20,38 +19,41 @@ void setup() {
 }
 
 void loop() {
-  bool fireDetected = digitalRead(flameSensorPin) == LOW; // LOW = fire
+  bool fireDetected = digitalRead(flameSensorPin) == LOW;
 
   if (fireDetected) {
-    String line1 = "!! FIRE ALERT !!  ";
-    String line2 = "Evacuate Now!    ";
-    marqueeScroll(line1, line2, 250); // scroll speed in ms
+    String topMsg = "!! FIRE ALERT !!   ";
+    String bottomMsg = "Evacuate Now!     ";
 
-    // Play ISD1820 message
+    // Trigger ISD1820 playback once
     digitalWrite(isdPlayEPin, HIGH);
     delay(200);
     digitalWrite(isdPlayEPin, LOW);
 
-    delay(3000); // Pause to avoid constant repeat
+    marqueeScrollLoop(topMsg, bottomMsg, 250);
   } else {
-    String line1 = "System Normal     ";
-    String line2 = "Monitoring...     ";
-    marqueeScroll(line1, line2, 300); // scroll speed in ms
+    String topMsg = "System Normal      ";
+    String bottomMsg = "Monitoring...      ";
+
+    marqueeScrollLoop(topMsg, bottomMsg, 300);
   }
 }
 
-// Helper function to scroll two lines
-void marqueeScroll(String top, String bottom, int speed) {
-  int len = max(top.length(), bottom.length());
+// Scrolls the message from right to left and loops back
+void marqueeScrollLoop(String line1, String line2, int delayTime) {
+  // Pad spaces to the beginning and end to allow clean scroll
+  String spacer = "                "; // 16 spaces
+  String scroll1 = spacer + line1 + spacer;
+  String scroll2 = spacer + line2 + spacer;
 
-  for (int i = 0; i < len - 15; i++) {
+  for (int i = 0; i <= scroll1.length() - 16; i++) {
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.print(top.substring(i, i + 16));
+    lcd.print(scroll1.substring(i, i + 16));
 
     lcd.setCursor(0, 1);
-    lcd.print(bottom.substring(i, i + 16));
+    lcd.print(scroll2.substring(i, i + 16));
 
-    delay(speed);
+    delay(delayTime);
   }
 }
