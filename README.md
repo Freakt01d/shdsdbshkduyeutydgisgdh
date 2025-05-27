@@ -1,68 +1,51 @@
+#include <LiquidCrystal.h>
 
+// RS, E, D4, D5, D6, D7
+LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
 
-import tkinter as tk
-from tkinter import filedialog, messagebox
-import file_operations
+const int flameSensorPin = 2;
+const int isdPlayEPin = 3;
+const int ledPin = 10;
 
-# Define global variables to store file paths
-csv_path = ""
-xlsx_path = ""
+void setup() {
+  pinMode(flameSensorPin, INPUT);
+  pinMode(isdPlayEPin, OUTPUT);
+  pinMode(ledPin, OUTPUT);
 
-def load_file(file_type):
-    global csv_path, xlsx_path
-    filetypes = (('CSV files', '*.csv') if file_type == 'csv' else ('Excel files', '*.xlsx'), ('All files', '*.*'))
-    filepath = filedialog.askopenfilename(title=f"Open {file_type.upper()} File", filetypes=filetypes)
-    if filepath:
-        if file_type == 'csv':
-            csv_path = filepath
-        else:
-            xlsx_path = filepath
-        return filepath
-    else:
-        return None
-    
-def select_destination():
-    folder_path = filedialog.askdirectory()
-    if folder_path:
-        return folder_path
-    else:  
-        return None
-    
-def process_files():
-    global csv_path, xlsx_path
-    if csv_path and xlsx_path:
-        output_dir = select_destination()
-        if output_dir:
-            try:
-                file_operations.file_operations(csv_path, xlsx_path, output_dir)
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to process the files: {e}")
-    else:
-        messagebox.showwarning("Warning", "Please select both CSV and XLSX files.")
+  digitalWrite(isdPlayEPin, LOW);
+  digitalWrite(ledPin, LOW);
 
-def main_app():
-    root = tk.Tk()
-    root.title("File Processor")
-    tk.Label(root, text="Input CSV File:").grid(row=0, column=0, sticky='w')
-    tk.Label(root, text="Input XLSX File:").grid(row=1, column=0, sticky='w')
-    tk.Label(root, text="Output Dest:").grid(row=2, column=0, sticky='w')
+  lcd.begin(16, 2); // 16 columns, 2 rows
+  lcd.setCursor(0, 0);
+  lcd.print(" System Ready ");
+}
 
-    csv_entry = tk.Entry(root, width=50)
-    csv_entry.grid(row=0, column=1, padx=5, pady=5, sticky='ew')
+void loop() {
+  bool fireDetected = digitalRead(flameSensorPin) == LOW; // LOW = fire
 
-    xlsx_entry = tk.Entry(root, width=50)
-    xlsx_entry.grid(row=1, column=1, padx=5, pady=5, sticky='ew')
+  if (fireDetected) {
+    digitalWrite(ledPin, HIGH);  // Turn on fire LED
 
-    out_entry = tk.Entry(root, width=50)
-    out_entry.grid(row=2, column=1, padx=5, pady=5, sticky='ew')
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("!! FIRE ALERT !!");
+    lcd.setCursor(0, 1);
+    lcd.print("Evacuate Now!");
 
-    tk.Button(root, text='Select CSV File', command=lambda: csv_entry.insert(0, load_file('csv'))).grid(row=0, column=2, padx=5, pady=5)
-    tk.Button(root, text='Select Xlsx File', command=lambda: xlsx_entry.insert(0, load_file('xlsx'))).grid(row=1, column=2, padx=5, pady=5)
-    tk.Button(root, text='Select Destination', command=lambda: out_entry.insert(0, select_destination())).grid(row=2, column=2, padx=5, pady=5)
+    // Trigger ISD1820 playback
+    digitalWrite(isdPlayEPin, HIGH);
+    delay(150);
+    digitalWrite(isdPlayEPin, LOW);
 
-    tk.Button(root, text='Filter', command=process_files).grid(row=3, column=2, padx=5, pady=5)
-    root.mainloop()
+    delay(5000);  // Wait to avoid retrigger
+  } else {
+    digitalWrite(ledPin, LOW);  // Turn off LED
 
-if __name__ == "__main__":
-    main_app()
-
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print(" System Normal ");
+    lcd.setCursor(0, 1);
+    lcd.print("Monitoring...  ");
+    delay(1000);
+  }
+}
