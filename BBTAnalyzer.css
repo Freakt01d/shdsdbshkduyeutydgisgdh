@@ -1,34 +1,57 @@
-using System.IO;
-using System.IO.Compression;
+#include <LiquidCrystal.h>
 
-if (principalFilePath.EndsWith(".gz", StringComparison.OrdinalIgnoreCase))
-{
-    using (var source = new FileStream(principalFilePath, FileMode.Open, FileAccess.Read))
-    using (var decompressor = new GZipStream(source, CompressionMode.Decompress))
-    using (var destination = new FileStream(principalFilePath.Replace(".gz", ""), FileMode.Create, FileAccess.Write))
-    {
-        decompressor.CopyTo(destination);
-    }
+// LCD: RS, E, D4, D5, D6, D7
+LiquidCrystal lcd(12, 10, 6, 5, 4, 3);
+
+const int flameSensorPin = 8;
+const int isdPlayEPin = 2;
+
+void setup() {
+  pinMode(flameSensorPin, INPUT);
+  pinMode(isdPlayEPin, OUTPUT);
+
+  digitalWrite(isdPlayEPin, LOW);
+
+  lcd.begin(16, 2); // 16 columns, 2 rows
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("System Ready");
+  delay(1000);
 }
-else if (principalFilePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
-{
-    string extractPath = Path.GetDirectoryName(principalFilePath);
-    using (var zipStream = new FileStream(principalFilePath, FileMode.Open, FileAccess.Read))
-    using (var archive = new ZipArchive(zipStream, ZipArchiveMode.Read))
-    {
-        foreach (var entry in archive.Entries)
-        {
-            if (!string.IsNullOrEmpty(entry.Name)) // Skip folders
-            {
-                string fullPath = Path.Combine(extractPath, entry.FullName);
-                Directory.CreateDirectory(Path.GetDirectoryName(fullPath));
 
-                using (var entryStream = entry.Open())
-                using (var outputStream = new FileStream(fullPath, FileMode.Create, FileAccess.Write))
-                {
-                    entryStream.CopyTo(outputStream);
-                }
-            }
-        }
-    }
+void loop() {
+  bool fireDetected = digitalRead(flameSensorPin) == LOW; // LOW = fire
+
+  if (fireDetected) {
+    String line1 = "!! FIRE ALERT !!  ";
+    String line2 = "Evacuate Now!    ";
+    marqueeScroll(line1, line2, 250); // scroll speed in ms
+
+    // Play ISD1820 message
+    digitalWrite(isdPlayEPin, HIGH);
+    delay(200);
+    digitalWrite(isdPlayEPin, LOW);
+
+    delay(3000); // Pause to avoid constant repeat
+  } else {
+    String line1 = "System Normal     ";
+    String line2 = "Monitoring...     ";
+    marqueeScroll(line1, line2, 300); // scroll speed in ms
+  }
+}
+
+// Helper function to scroll two lines
+void marqueeScroll(String top, String bottom, int speed) {
+  int len = max(top.length(), bottom.length());
+
+  for (int i = 0; i < len - 15; i++) {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print(top.substring(i, i + 16));
+
+    lcd.setCursor(0, 1);
+    lcd.print(bottom.substring(i, i + 16));
+
+    delay(speed);
+  }
 }
