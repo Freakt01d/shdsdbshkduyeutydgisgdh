@@ -1,7 +1,11 @@
-public bool IsDifferenceLessThanOneYear(DateTime date1, DateTime date2)
-{
-    // Get absolute difference in days
-    var difference = (date1 - date2).Duration();
+case "refUnderlyingMaturityDate":
+    DateTime maturity;
+    if (DateTime.TryParse(child.InnerText.Trim(), out maturity))
+        entry.MaturityDate = maturity;
+    break;
 
-    return difference.TotalDays < 365;
-}
+case "refUnderlyingStartDate":
+    DateTime start;
+    if (DateTime.TryParse(child.InnerText.Trim(), out start))
+        entry.StartDate = start;
+    break;
