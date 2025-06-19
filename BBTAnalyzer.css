@@ -1,4 +1,7 @@
-sft10.RefUnderlyingIsins = sft10.RefUnderlyingData
-                              .Select(x => x.RefUnderlyingIsin)
-                              .Where(x => !string.IsNullOrEmpty(x))
-                              .ToList();
+public bool IsDifferenceLessThanOneYear(DateTime date1, DateTime date2)
+{
+    // Get absolute difference in days
+    var difference = (date1 - date2).Duration();
+
+    return difference.TotalDays < 365;
+}
