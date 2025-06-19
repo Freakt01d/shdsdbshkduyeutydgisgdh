@@ -1,72 +1,58 @@
-#include <LiquidCrystal.h>
-#include <avr/pgmspace.h>
-
-// LCD: RS, E, D4, D5, D6, D7
-LiquidCrystal lcd(12, 10, 6, 5, 4, 3);
-
-const int flameSensorPin = 8;
-const int isdPlayEPin = 2;
-
-// Long message stored in flash memory
-const char fireMessage[] PROGMEM = 
-  "Yaaaay the candle is on, hottie. En gotta, it feels so surreal that I can call you my girl. You know my girl. So unbelievable that the girl with the most ethereal presence is with me. Six months ago I lifted you above the ground for the first time and that was the day my life changed. The enchanting beauty and the fearless character you hold can imprison any wise guy. And coming to being imprisoned, your eyes have captured me since the day I saw it under sunlight at grasslands. Thanks for everything M, I am lucky to have you in my life.";
-
-void setup() {
-  pinMode(flameSensorPin, INPUT);
-  pinMode(isdPlayEPin, OUTPUT);
-  digitalWrite(isdPlayEPin, LOW);
-
-  lcd.begin(16, 2);
-  lcd.clear();
-  lcd.print("System Ready");
-  delay(1000);
+public class RefUnderlyingEntry
+{
+    public string RefUnderlying { get; set; }               // 838970939
+    public string RefUnderlyingIsin { get; set; }           // XS0162990229
+    public string MaturityDate { get; set; }
+    public string StartDate { get; set; }
+    public string MarketCountry { get; set; }
+    public string ClearingCountry { get; set; }
 }
 
-void loop() {
-  bool fireDetected = digitalRead(flameSensorPin) == LOW;
+private List<RefUnderlyingEntry> ParseRefUnderlyings(IDealObject deal)
+{
+    var result = new List<RefUnderlyingEntry>();
+    var xmlDoc = new XmlDocument();
 
-  if (fireDetected) {
-    // Trigger voice alert
-    digitalWrite(isdPlayEPin, HIGH);
-    delay(200);
-    digitalWrite(isdPlayEPin, LOW);
+    if (!string.IsNullOrEmpty(deal.Deal.DealDetails))
+    {
+        var dealDetails = deal.Deal.DealDetails.Replace("¢", "&");
+        xmlDoc.LoadXml(dealDetails);
 
-    scrollFireMessage();
-  } else {
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("System Normal");
-    lcd.setCursor(0, 1);
-    lcd.print("Monitoring...  ");
-    delay(1000);
-  }
-}
+        var refUnderlyingsNodes = xmlDoc.GetElementsByTagName("refUnderlyings");
 
-void scrollFireMessage() {
-  const int msgLength = sizeof(fireMessage) - 1;
-  const int windowSize = 16;
-  const int delayTime = 250;
+        foreach (XmlNode refUnderlyings in refUnderlyingsNodes)
+        {
+            var entry = new RefUnderlyingEntry();
 
-  char window[17];  // 16 chars + null terminator
-  window[16] = '\0';
+            foreach (XmlNode child in refUnderlyings.ChildNodes)
+            {
+                switch (child.Name)
+                {
+                    case "refUnderlying":
+                        entry.RefUnderlying = child.InnerText.Trim();
+                        break;
+                    case "refUnderlyingIsin":
+                        entry.RefUnderlyingIsin = child.InnerText.Trim();
+                        break;
+                    case "refUnderlyingMaturityDate":
+                        entry.MaturityDate = child.InnerText.Trim();
+                        break;
+                    case "refUnderlyingStartDate":
+                        entry.StartDate = child.InnerText.Trim();
+                        break;
+                    case "refUnderlyingMarketCountry":
+                        entry.MarketCountry = child.InnerText.Trim();
+                        break;
+                    case "refUnderlyingClearingCountry":
+                        entry.ClearingCountry = child.InnerText.Trim();
+                        break;
+                }
+            }
 
-  for (int i = 0; i <= msgLength; i++) {
-    for (int j = 0; j < windowSize; j++) {
-      int index = i + j;
-      if (index < msgLength) {
-        window[j] = pgm_read_byte_near(fireMessage + index);
-      } else {
-        window[j] = ' ';  // pad with space if over
-      }
+            if (!string.IsNullOrEmpty(entry.RefUnderlyingIsin) || !string.IsNullOrEmpty(entry.RefUnderlying))
+                result.Add(entry);
+        }
     }
 
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print(window);
-
-    lcd.setCursor(0, 1);
-    lcd.print("Evacuate Now!");
-
-    delay(delayTime);
-  }
+    return result;
 }
