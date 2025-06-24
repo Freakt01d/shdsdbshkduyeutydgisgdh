@@ -1,11 +1,22 @@
-case "refUnderlyingMaturityDate":
-    DateTime maturity;
-    if (DateTime.TryParse(child.InnerText.Trim(), out maturity))
-        entry.MaturityDate = maturity;
-    break;
+var xmlDoc = new XmlDocument();
+xmlDoc.LoadXml(xmlString); // your full XML string
 
-case "refUnderlyingStartDate":
-    DateTime start;
-    if (DateTime.TryParse(child.InnerText.Trim(), out start))
-        entry.StartDate = start;
-    break;
+// Prepare a dictionary to store Name -> Value
+var specificFields = new Dictionary<string, string>();
+
+// Get all <Specific> nodes inside <SpecificFields>
+var specificNodes = xmlDoc.SelectNodes("//SpecificFields/Specific");
+
+if (specificNodes != null)
+{
+    foreach (XmlNode node in specificNodes)
+    {
+        var nameAttr = node.Attributes["Name"];
+        var valueAttr = node.Attributes["Value"];
+
+        if (nameAttr != null && valueAttr != null)
+        {
+            specificFields[nameAttr.Value] = valueAttr.Value;
+        }
+    }
+}
