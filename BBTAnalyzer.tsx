@@ -1,92 +1,98 @@
-import React, { useState } from "react";
-import BBTDetailView from "./BBTDetailView";
-import "./BBTAnalyzer.css";
+public static class OracleHelper
+{
+    public static void DropTableIfExists(string tableName, string connStr)
+    {
+        using (var conn = new OracleConnection(connStr))
+        {
+            conn.Open();
+            var cmd = conn.CreateCommand();
+            cmd.CommandText = $@"
+                BEGIN
+                    EXECUTE IMMEDIATE 'DROP TABLE {tableName}';
+                EXCEPTION
+                    WHEN OTHERS THEN
+                        IF SQLCODE != -942 THEN
+                            RAISE;
+                        END IF;
+                END;";
+            cmd.ExecuteNonQuery();
+        }
+    }
 
-interface BBTData {
-  id: number;
-  workflow: string;
-  status: string;
-  color: string;
-  validated: boolean;
-  description?: string;
-  comment?: string;
-}
+    public static void CreateTableFromMaster(string csvPath, string tableName, string connStr)
+    {
+        // Read headers and generate create table statement
+        var headers = File.ReadLines(csvPath).First().Split(',');
+        var columns = headers.Select(h => $"{h.Trim().ToUpper()} VARCHAR2(4000)").ToArray();
+        var createTableSQL = $"CREATE TABLE {tableName} ({string.Join(",", columns)})";
 
-const initialRows: BBTData[] = [
-  { id: 4198, workflow: "COLLAT", status: "Passed", color: "bg-green-500", validated: false },
-  { id: 4199, workflow: "MIFID-1", status: "Passed", color: "bg-green-500", validated: false },
-  { id: 4200, workflow: "DFA", status: "False", color: "bg-red-500", validated: false },
-  { id: 4201, workflow: "COLLAT", status: "False", color: "bg-red-500", validated: false },
-  { id: 4202, workflow: "IFU", status: "Passed", color: "bg-green-500", validated: false },
-];
+        using (var conn = new OracleConnection(connStr))
+        {
+            conn.Open();
+            var cmd = conn.CreateCommand();
+            cmd.CommandText = createTableSQL;
+            cmd.ExecuteNonQuery();
+        }
+    }
 
-const BBTAnalyzer: React.FC = () => {
-  const [showTable, setShowTable] = useState(false);
-  const [rows, setRows] = useState<BBTData[]>(initialRows);
-  const [selectedData, setSelectedData] = useState<BBTData | null>(null);
+    public static void InsertDataFromCsv(string csvPath, string tableName, string connStr)
+    {
+        // Basic line-by-line insert
+        var lines = File.ReadAllLines(csvPath).Skip(1); // Skip headers
 
-  const handleValidate = (index: number) => {
-    setRows((prevRows) =>
-      prevRows.map((row, i) =>
-        i === index
-          ? {
-              ...row,
-              validated: !row.validated,
-              status: !row.validated ? "Validated" : initialRows.find(r => r.id === row.id)?.status || "Passed",
-              color: !row.validated ? "bg-yellow-500" : (initialRows.find(r => r.id === row.id)?.color || "bg-green-500"),
+        using (var conn = new OracleConnection(connStr))
+        {
+            conn.Open();
+            foreach (var line in lines)
+            {
+                var values = line.Split(',').Select(v => $"'{v.Replace("'", "''")}'").ToArray();
+                var insertSQL = $"INSERT INTO {tableName} VALUES ({string.Join(",", values)})";
+
+                var cmd = conn.CreateCommand();
+                cmd.CommandText = insertSQL;
+                cmd.ExecuteNonQuery();
             }
-          : row
-      )
-    );
-  };
+        }
+    }
 
-  const handleView = (data: BBTData) => {
-    setSelectedData(data);
-  };
+    public static void ApplyDeltaChanges(string deltaPath, string tableName, string connStr)
+    {
+        var lines = File.ReadAllLines(deltaPath).Skip(1); // Assuming first line is header
+        using (var conn = new OracleConnection(connStr))
+        {
+            conn.Open();
+            foreach (var line in lines)
+            {
+                var cols = line.Split(',');
 
-  return (
-    <div className="container">
-      <div className="controls">
-        <select>
-          <option>ISO_25.01.31.1</option>
-        </select>
-        <button onClick={() => setShowTable(true)}>Start Comparison</button>
-      </div>
+                var action = cols[0]; // e.g., "APPEND", "UPDATE", "DELETE"
+                var keyColumn = "ID"; // Replace with actual key column name
+                var keyValue = cols[1];
 
-      {showTable && (
-        <div className="table-container">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Workflow</th>
-                <th>Status</th>
-                <th>View</th>
-                <th>Validate</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, index) => (
-                <tr key={row.id}>
-                  <td>{row.id}</td>
-                  <td>{row.workflow}</td>
-                  <td className={row.color}>{row.status}</td>
-                  <td>
-                    <button onClick={() => handleView(row)}>View</button>
-                  </td>
-                  <td>
-                    <input type="checkbox" checked={row.validated} onChange={() => handleValidate(index)} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {selectedData && <BBTDetailView data={selectedData} onClose={() => setSelectedData(null)} />}
-    </div>
-  );
-};
-
-export default BBTAnalyzer;
+                if (action == "APPEND")
+                {
+                    var values = cols.Skip(1).Select(v => $"'{v.Replace("'", "''")}'").ToArray();
+                    var insertSQL = $"INSERT INTO {tableName} VALUES ({string.Join(",", values)})";
+                    var cmd = conn.CreateCommand();
+                    cmd.CommandText = insertSQL;
+                    cmd.ExecuteNonQuery();
+                }
+                else if (action == "UPDATE")
+                {
+                    var setClause = string.Join(",", cols.Skip(2).Select((v, i) => $"COL{i+2}='{v}'")); // Adjust column names
+                    var updateSQL = $"UPDATE {tableName} SET {setClause} WHERE {keyColumn} = '{keyValue}'";
+                    var cmd = conn.CreateCommand();
+                    cmd.CommandText = updateSQL;
+                    cmd.ExecuteNonQuery();
+                }
+                else if (action == "DELETE")
+                {
+                    var deleteSQL = $"DELETE FROM {tableName} WHERE {keyColumn} = '{keyValue}'";
+                    var cmd = conn.CreateCommand();
+                    cmd.CommandText = deleteSQL;
+                    cmd.ExecuteNonQuery();
+                }
+            }
+        }
+    }
+}
