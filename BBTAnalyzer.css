@@ -1,22 +1,63 @@
-var xmlDoc = new XmlDocument();
-xmlDoc.LoadXml(xmlString); // your full XML string
-
-// Prepare a dictionary to store Name -> Value
-var specificFields = new Dictionary<string, string>();
-
-// Get all <Specific> nodes inside <SpecificFields>
-var specificNodes = xmlDoc.SelectNodes("//SpecificFields/Specific");
-
-if (specificNodes != null)
+public class TacticalStoreService
 {
-    foreach (XmlNode node in specificNodes)
-    {
-        var nameAttr = node.Attributes["Name"];
-        var valueAttr = node.Attributes["Value"];
+    private readonly string folderPath = @"\\shared\folder\path";
+    private readonly string oracleConnectionString = "Your Oracle Connection String";
 
-        if (nameAttr != null && valueAttr != null)
+    public void Start()
+    {
+        Task.Run(() => MonitorFolder());
+    }
+
+    private void MonitorFolder()
+    {
+        while (true)
         {
-            specificFields[nameAttr.Value] = valueAttr.Value;
+            var today = DateTime.Now.ToString("yyyyMMdd");
+            var masterFile = Directory.GetFiles(folderPath, $"master_{today}.csv").FirstOrDefault();
+
+            if (masterFile != null)
+            {
+                HandleMasterFile(masterFile);
+                break; // Stop checking once today's master is handled
+            }
+
+            Thread.Sleep(TimeSpan.FromMinutes(5));
         }
+
+        // Now wait for delta files
+        WatchDeltaFiles();
+    }
+
+    private void HandleMasterFile(string filePath)
+    {
+        var tableName = $"TACTICAL_{DateTime.Now:yyyyMMdd}";
+
+        // Drop table from 2 days ago
+        var dropTableName = $"TACTICAL_{DateTime.Now.AddDays(-2):yyyyMMdd}";
+        OracleHelper.DropTableIfExists(dropTableName, oracleConnectionString);
+
+        // Create new table
+        OracleHelper.CreateTableFromMaster(filePath, tableName, oracleConnectionString);
+
+        // Load master data
+        OracleHelper.InsertDataFromCsv(filePath, tableName, oracleConnectionString);
+    }
+
+    private void WatchDeltaFiles()
+    {
+        FileSystemWatcher watcher = new FileSystemWatcher
+        {
+            Path = folderPath,
+            Filter = $"delta_{DateTime.Now:yyyyMMdd}_*.csv",
+            NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite,
+            EnableRaisingEvents = true
+        };
+
+        watcher.Created += (s, e) =>
+        {
+            Console.WriteLine($"Delta file detected: {e.FullPath}");
+            var tableName = $"TACTICAL_{DateTime.Now:yyyyMMdd}";
+            OracleHelper.ApplyDeltaChanges(e.FullPath, tableName, oracleConnectionString);
+        };
     }
 }
