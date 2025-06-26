@@ -1,15 +1,7 @@
-public static List<string> GetAndParseJsonResultForRoles(string url)
-{
-    using (HttpClient httpClient = new HttpClient())
-    {
-        string json = httpClient.GetStringAsync(url).Result;
+var content = await response.Content.ReadAsStringAsync();
+JToken parsed = JToken.Parse(content);
 
-        JObject parsed = JObject.Parse(json);
-        List<string> roleStrings = parsed["roleData"]?["roles"]
-            ?.Select(r => r["role"]?.ToString())
-            .Where(r => !string.IsNullOrEmpty(r))
-            .ToList() ?? new List<string>();
-
-        return roleStrings;
-    }
-}
+List<string> roles = parsed
+    .Select(token => token["role"]?.ToString())
+    .Where(roleName => !string.IsNullOrEmpty(roleName))
+    .ToList();
