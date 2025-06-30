@@ -1,98 +1,48 @@
-public static class OracleHelper
+internal static CatReportDataApi[] GetAndParseCatReportFlatFileResult<T>(
+    this HttpClient client,
+    Uri relativeUri,
+    CancellationToken token,
+    string CatDataFilePath,
+    string destinationFolderPath)
 {
-    public static void DropTableIfExists(string tableName, string connStr)
+    if (client.Timeout != TimeSpan.FromMinutes(5))
+        client.Timeout = TimeSpan.FromMinutes(5);
+
+    var result = client.GetAsync(relativeUri, token).Result;
+    using (result)
     {
-        using (var conn = new OracleConnection(connStr))
+        result.EnsureSuccessStatusCode();
+
+        var resultContent = result.Content.ReadAsByteArrayAsync().Result;
+        AppendAllBytes(CatDataFilePath, resultContent); // saves to disk
+
+        // ✅ Assume this is a .txt pipe-delimited file, NOT .gz
+        var lines = File.ReadAllLines(destinationFolderPath);
+        if (lines.Length < 2)
+            return Array.Empty<CatReportDataApi>();
+
+        var headers = lines[0].Split('|');
+        var records = new List<Dictionary<string, string>>();
+
+        foreach (var line in lines.Skip(1))
         {
-            conn.Open();
-            var cmd = conn.CreateCommand();
-            cmd.CommandText = $@"
-                BEGIN
-                    EXECUTE IMMEDIATE 'DROP TABLE {tableName}';
-                EXCEPTION
-                    WHEN OTHERS THEN
-                        IF SQLCODE != -942 THEN
-                            RAISE;
-                        END IF;
-                END;";
-            cmd.ExecuteNonQuery();
-        }
-    }
+            if (string.IsNullOrWhiteSpace(line)) continue;
 
-    public static void CreateTableFromMaster(string csvPath, string tableName, string connStr)
-    {
-        // Read headers and generate create table statement
-        var headers = File.ReadLines(csvPath).First().Split(',');
-        var columns = headers.Select(h => $"{h.Trim().ToUpper()} VARCHAR2(4000)").ToArray();
-        var createTableSQL = $"CREATE TABLE {tableName} ({string.Join(",", columns)})";
+            var values = line.Split('|');
+            var record = new Dictionary<string, string>();
 
-        using (var conn = new OracleConnection(connStr))
-        {
-            conn.Open();
-            var cmd = conn.CreateCommand();
-            cmd.CommandText = createTableSQL;
-            cmd.ExecuteNonQuery();
-        }
-    }
-
-    public static void InsertDataFromCsv(string csvPath, string tableName, string connStr)
-    {
-        // Basic line-by-line insert
-        var lines = File.ReadAllLines(csvPath).Skip(1); // Skip headers
-
-        using (var conn = new OracleConnection(connStr))
-        {
-            conn.Open();
-            foreach (var line in lines)
+            for (int i = 0; i < headers.Length && i < values.Length; i++)
             {
-                var values = line.Split(',').Select(v => $"'{v.Replace("'", "''")}'").ToArray();
-                var insertSQL = $"INSERT INTO {tableName} VALUES ({string.Join(",", values)})";
-
-                var cmd = conn.CreateCommand();
-                cmd.CommandText = insertSQL;
-                cmd.ExecuteNonQuery();
+                record[headers[i].Trim()] = values[i].Trim();
             }
+
+            records.Add(record);
         }
-    }
 
-    public static void ApplyDeltaChanges(string deltaPath, string tableName, string connStr)
-    {
-        var lines = File.ReadAllLines(deltaPath).Skip(1); // Assuming first line is header
-        using (var conn = new OracleConnection(connStr))
-        {
-            conn.Open();
-            foreach (var line in lines)
-            {
-                var cols = line.Split(',');
+        // ✅ Convert to JSON string
+        var jsonData = JsonConvert.SerializeObject(records);
 
-                var action = cols[0]; // e.g., "APPEND", "UPDATE", "DELETE"
-                var keyColumn = "ID"; // Replace with actual key column name
-                var keyValue = cols[1];
-
-                if (action == "APPEND")
-                {
-                    var values = cols.Skip(1).Select(v => $"'{v.Replace("'", "''")}'").ToArray();
-                    var insertSQL = $"INSERT INTO {tableName} VALUES ({string.Join(",", values)})";
-                    var cmd = conn.CreateCommand();
-                    cmd.CommandText = insertSQL;
-                    cmd.ExecuteNonQuery();
-                }
-                else if (action == "UPDATE")
-                {
-                    var setClause = string.Join(",", cols.Skip(2).Select((v, i) => $"COL{i+2}='{v}'")); // Adjust column names
-                    var updateSQL = $"UPDATE {tableName} SET {setClause} WHERE {keyColumn} = '{keyValue}'";
-                    var cmd = conn.CreateCommand();
-                    cmd.CommandText = updateSQL;
-                    cmd.ExecuteNonQuery();
-                }
-                else if (action == "DELETE")
-                {
-                    var deleteSQL = $"DELETE FROM {tableName} WHERE {keyColumn} = '{keyValue}'";
-                    var cmd = conn.CreateCommand();
-                    cmd.CommandText = deleteSQL;
-                    cmd.ExecuteNonQuery();
-                }
-            }
-        }
+        // ✅ Keep your original deserialization logic intact
+        return JsonConvert.DeserializeObject<CatReportDataApi[]>(jsonData);
     }
 }
