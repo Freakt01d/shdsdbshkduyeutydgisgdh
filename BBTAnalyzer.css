@@ -1,63 +1,171 @@
-public class TacticalStoreService
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Oracle.ManagedDataAccess.Client;
+using Log4net;
+
+namespace RED.TacticalStores
 {
-    private readonly string folderPath = @"\\shared\folder\path";
-    private readonly string oracleConnectionString = "Your Oracle Connection String";
-
-    public void Start()
+    public sealed class TraceFileStore
     {
-        Task.Run(() => MonitorFolder());
-    }
+        private const string FilePattern = "*.txt";
+        private readonly string _redDbConnStr;
+        private readonly int _reloadHour;
+        private readonly ILog _logger;
+        private Task _reloadingTask;
+        private readonly CancellationTokenSource _cts;
+        private readonly CancellationToken _token;
+        private readonly string _folderPath = @"C:\Shared\TraceFiles"; // Change to your shared folder path
 
-    private void MonitorFolder()
-    {
-        while (true)
+        public TraceFileStore(string redDbConnStr, int reloadHour, ILog logger)
         {
-            var today = DateTime.Now.ToString("yyyyMMdd");
-            var masterFile = Directory.GetFiles(folderPath, $"master_{today}.csv").FirstOrDefault();
-
-            if (masterFile != null)
-            {
-                HandleMasterFile(masterFile);
-                break; // Stop checking once today's master is handled
-            }
-
-            Thread.Sleep(TimeSpan.FromMinutes(5));
+            _cts = new CancellationTokenSource();
+            _token = _cts.Token;
+            _redDbConnStr = redDbConnStr;
+            _reloadHour = reloadHour;
+            _logger = logger;
         }
 
-        // Now wait for delta files
-        WatchDeltaFiles();
-    }
-
-    private void HandleMasterFile(string filePath)
-    {
-        var tableName = $"TACTICAL_{DateTime.Now:yyyyMMdd}";
-
-        // Drop table from 2 days ago
-        var dropTableName = $"TACTICAL_{DateTime.Now.AddDays(-2):yyyyMMdd}";
-        OracleHelper.DropTableIfExists(dropTableName, oracleConnectionString);
-
-        // Create new table
-        OracleHelper.CreateTableFromMaster(filePath, tableName, oracleConnectionString);
-
-        // Load master data
-        OracleHelper.InsertDataFromCsv(filePath, tableName, oracleConnectionString);
-    }
-
-    private void WatchDeltaFiles()
-    {
-        FileSystemWatcher watcher = new FileSystemWatcher
+        public void StartProcessing()
         {
-            Path = folderPath,
-            Filter = $"delta_{DateTime.Now:yyyyMMdd}_*.csv",
-            NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite,
-            EnableRaisingEvents = true
-        };
+            _logger.Info("TraceFileStore: StartProcessing initiated.");
 
-        watcher.Created += (s, e) =>
+            _reloadingTask = Task.Run(async () =>
+            {
+                while (!_token.IsCancellationRequested)
+                {
+                    try
+                    {
+                        ProcessFiles();
+
+                        var now = DateTime.Now;
+                        var nextRun = DateTime.Today.AddDays(now.Hour >= _reloadHour ? 1 : 0).AddHours(_reloadHour);
+                        var delay = nextRun - now;
+
+                        _logger.Info($"Next file check/partition creation scheduled at {nextRun}");
+                        await Task.Delay(delay, _token);
+
+                        CreatePartitionForToday(); // Optional: if you want partition at reload time
+                    }
+                    catch (TaskCanceledException) { }
+                    catch (Exception ex)
+                    {
+                        _logger.Error("Error in TraceFileStore background task: ", ex);
+                    }
+                }
+            }, _token);
+        }
+
+        public async Task StopProcessingAsync()
         {
-            Console.WriteLine($"Delta file detected: {e.FullPath}");
-            var tableName = $"TACTICAL_{DateTime.Now:yyyyMMdd}";
-            OracleHelper.ApplyDeltaChanges(e.FullPath, tableName, oracleConnectionString);
-        };
+            _logger.Info("TraceFileStore: StopProcessingAsync called.");
+            _cts.Cancel();
+
+            if (_reloadingTask != null)
+            {
+                await _reloadingTask;
+            }
+
+            _logger.Info("TraceFileStore: Background task stopped.");
+        }
+
+        private void ProcessFiles()
+        {
+            var files = Directory.GetFiles(_folderPath, FilePattern);
+            var today = DateTime.Today;
+
+            foreach (var file in files)
+            {
+                _logger.Info($"Processing file: {file}");
+
+                var lines = File.ReadAllLines(file);
+                if (lines.Length < 2) continue;
+
+                var headers = lines[0].Split('|');
+                int cusipIndex = Array.IndexOf(headers, "cusip_id");
+                int statusIndex = Array.IndexOf(headers, "status");
+
+                if (cusipIndex == -1 || statusIndex == -1)
+                {
+                    _logger.Warn($"Required columns not found in file: {file}");
+                    continue;
+                }
+
+                var toInsert = new List<string>();
+                var toDelete = new List<string>();
+
+                foreach (var line in lines.Skip(1))
+                {
+                    var cols = line.Split('|');
+                    if (cols.Length <= Math.Max(cusipIndex, statusIndex)) continue;
+
+                    var cusip = cols[cusipIndex];
+                    var status = cols[statusIndex];
+
+                    if (string.IsNullOrWhiteSpace(cusip)) continue;
+
+                    if (status == "N") toInsert.Add(cusip);
+                    else if (status == "D") toDelete.Add(cusip);
+                }
+
+                ApplyToDatabase(toInsert, toDelete, today);
+            }
+        }
+
+        private void ApplyToDatabase(List<string> toInsert, List<string> toDelete, DateTime partitionDate)
+        {
+            using (var conn = new OracleConnection(_redDbConnStr))
+            {
+                conn.Open();
+
+                foreach (var cusip in toInsert)
+                {
+                    var cmd = new OracleCommand("INSERT INTO TraceFiles (cusip_id, partition_date) VALUES (:cusip, :pdate)", conn);
+                    cmd.Parameters.Add(new OracleParameter("cusip", cusip));
+                    cmd.Parameters.Add(new OracleParameter("pdate", partitionDate));
+                    cmd.ExecuteNonQuery();
+                }
+
+                foreach (var cusip in toDelete)
+                {
+                    var cmd = new OracleCommand("DELETE FROM TraceFiles WHERE cusip_id = :cusip AND partition_date = :pdate", conn);
+                    cmd.Parameters.Add(new OracleParameter("cusip", cusip));
+                    cmd.Parameters.Add(new OracleParameter("pdate", partitionDate));
+                    cmd.ExecuteNonQuery();
+                }
+
+                _logger.Info($"Inserted: {toInsert.Count}, Deleted: {toDelete.Count} for date {partitionDate:yyyy-MM-dd}");
+            }
+        }
+
+        private void CreatePartitionForToday()
+        {
+            using (var conn = new OracleConnection(_redDbConnStr))
+            {
+                conn.Open();
+
+                var today = DateTime.Today.ToString("yyyyMMdd");
+
+                var sql = $@"
+                    BEGIN
+                        EXECUTE IMMEDIATE 'ALTER TABLE TraceFiles ADD PARTITION p_{today} VALUES (TO_DATE(''{today}'', ''YYYYMMDD''))';
+                    EXCEPTION
+                        WHEN OTHERS THEN
+                            IF SQLCODE != -14018 THEN
+                                RAISE;
+                            END IF;
+                    END;";
+
+                using (var cmd = new OracleCommand(sql, conn))
+                {
+                    cmd.ExecuteNonQuery();
+                    _logger.Info($"Partition for date {today} ensured.");
+                }
+            }
+        }
     }
 }
