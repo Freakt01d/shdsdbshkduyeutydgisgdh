@@ -1,61 +1,28 @@
-private void ProcessFiles()
-{
-    var today = DateTime.Today;
-    var processedDir = Path.Combine(_folderPath, "processed");
-
-    if (!Directory.Exists(processedDir))
-        Directory.CreateDirectory(processedDir);
-
-    var files = Directory.GetFiles(_folderPath)
-        .Where(f => File.GetLastWriteTime(f).Date == today)
-        .ToList();
-
-    foreach (var file in files)
-    {
-        try
-        {
-            _logger.Info($"Processing file: {Path.GetFileName(file)}");
-
-            var lines = File.ReadAllLines(file);
-            if (lines.Length < 2) continue;
-
-            var headers = lines[0].Split('|');
-            int cusipIndex = Array.IndexOf(headers, "cusip_id");
-            int statusIndex = Array.IndexOf(headers, "status");
-
-            if (cusipIndex == -1 || statusIndex == -1)
-            {
-                _logger.Warn($"Required columns not found in file: {file}");
-                continue;
-            }
-
-            var toInsert = new List<string>();
-            var toDelete = new List<string>();
-
-            foreach (var line in lines.Skip(1))
-            {
-                var cols = line.Split('|');
-                if (cols.Length <= Math.Max(cusipIndex, statusIndex)) continue;
-
-                var cusip = cols[cusipIndex];
-                var status = cols[statusIndex];
-
-                if (string.IsNullOrWhiteSpace(cusip)) continue;
-
-                if (status == "N") toInsert.Add(cusip);
-                else if (status == "D") toDelete.Add(cusip);
-            }
-
-            ApplyToDatabase(toInsert, toDelete, today);
-
-            // ✅ Move to "processed" folder after success
-            var destPath = Path.Combine(processedDir, Path.GetFileName(file));
-            File.Move(file, destPath);
-            _logger.Info($"Moved processed file to: {destPath}");
-        }
-        catch (Exception ex)
-        {
-            _logger.Error($"Failed to process file: {file}", ex);
-        }
-    }
-}
+INSERT INTO redservice.t_report_configuration (
+    config_id,
+    workflow_name,
+    xml_type,
+    parent_config_id,
+    xml_attribute_name,
+    xml_element_name,
+    is_xml_attribute_repeated,
+    xml_attribute_value_delimeter,
+    report_col_name,
+    report_col_value_delimeter,
+    priority,
+    pkey
+)
+VALUES (
+    1, -- config_id
+    'workflow1', -- workflow_name
+    'type1', -- xml_type
+    NULL, -- parent_config_id (if optional)
+    'attr_name', -- xml_attribute_name
+    'element_name', -- xml_element_name
+    false, -- is_xml_attribute_repeated (boolean)
+    '|', -- xml_attribute_value_delimeter
+    'col_name', -- report_col_name
+    ',', -- report_col_value_delimeter
+    1, -- priority
+    1001 -- pkey
+);
