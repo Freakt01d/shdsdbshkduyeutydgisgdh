@@ -1,29 +1,53 @@
-.xml-box {
-  font-family: monospace;
-  padding: 10px;
-  border: 1px solid #ccc;
-  white-space: pre-wrap; /* Keeps formatting */
-  word-wrap: break-word; /* Prevents overflow */
-  background-color: #1e1e1e; /* Dark background for contrast */
-  color: white; /* Default text color */
-}
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.backends import default_backend
+from base64 import b64encode, b64decode
+import os
 
-.xml-box span {
-  padding: 2px 4px;
-  border-radius: 4px;
-}
+# Generate a new AES key and IV (only once)
+def generate_key_iv():
+    key = os.urandom(32)  # 256-bit key
+    iv = os.urandom(16)   # 128-bit IV
+    return b64encode(key).decode(), b64encode(iv).decode()
 
-.xml-box .added {
-  background-color: yellow;
-  color: black;
-}
+# Encrypt a string using AES CBC
+def encrypt(plain_text, base64_key, base64_iv):
+    key = b64decode(base64_key)
+    iv = b64decode(base64_iv)
 
-.xml-box .removed {
-  background-color: red;
-  color: white;
-}
+    # Pad plain text to multiple of 16 bytes
+    pad_len = 16 - len(plain_text.encode()) % 16
+    padded_text = plain_text + chr(pad_len) * pad_len
 
-.xml-box .changed {
-  background-color: lightgreen;
-  color: black;
-}
+    cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+    encryptor = cipher.encryptor()
+    ct = encryptor.update(padded_text.encode()) + encryptor.finalize()
+    return b64encode(ct).decode()
+
+# Decrypt AES-encrypted string
+def decrypt(cipher_text, base64_key, base64_iv):
+    key = b64decode(base64_key)
+    iv = b64decode(base64_iv)
+    cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+    decryptor = cipher.decryptor()
+    padded_plain = decryptor.update(b64decode(cipher_text)) + decryptor.finalize()
+
+    # Remove padding
+    pad_len = padded_plain[-1]
+    return padded_plain[:-pad_len].decode()
+
+if __name__ == "__main__":
+    # Example: Oracle connection string
+    conn_str = "User Id=scott;Password=tiger;Data Source=localhost:1521/XEPDB1;"
+    
+    # Run once to generate key/IV
+    key, iv = generate_key_iv()
+    print("Key:", key)
+    print("IV: ", iv)
+
+    # Encrypt
+    encrypted = encrypt(conn_str, key, iv)
+    print("\nEncrypted:", encrypted)
+
+    # Decrypt
+    decrypted = decrypt(encrypted, key, iv)
+    print("\nDecrypted:", decrypted)
