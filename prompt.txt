@@ -1,0 +1,21 @@
+As a Quantitative Urban Economist, I need to model the heterogeneous price drivers across low, median, and high-value housing segments and estimate the quasi-causal impact of a property being a resale unit in major Indian metropolitan areas.
+
+The analysis must use the combined data from the three available city datasets: `Bangalore.csv`, `Kolkata.csv`, and `Hyderabad.csv`.
+
+Sequential Chain of Commands
+
+1.  Data Preparation and Union: Load and concatenate the three city datasets. Create a new column, `City`, to identify the source of each observation.
+2.  Feature Engineering: Compute two new variables:
+    `price_per_sqft` as $\text{Price} / \text{Area}$.
+    `amenity_count` as the sum of all $0/1$ amenity columns (from `MaintenanceStaff` to `Refrigerator`).
+3.  Outlier Treatment: Perform outlier removal on `price_per_sqft` within each City by removing observations falling outside the Interquartile Range (IQR) fence ($Q1 - 1.5 \times IQR$ and $Q3 + 1.5 \times IQR$). The resulting cleaned dataset must be used for all subsequent steps.
+4.  Quantile Regression Analysis: Estimate three separate Quantile Regression models to predict the cleaned `price_per_sqft` using only the standardized versions of `Area` and `amenity_count` as predictors. Fit these models for the 25th, 50th (median), and 75th quantiles.
+5.  Causal Inference (Propensity Score Matching): Using the cleaned data, apply Propensity Score Matching (PSM) to estimate the Average Treatment Effect on the Treated (ATT) of Resale ($T=1$) on the cleaned `price_per_sqft`. The propensity score must be estimated using a logistic regression with `Area` and `amenity_count` as covariates. Use a nearest-neighbor matching method.
+6.  Visualization (Tied to Reasoning): Generate a single forest plot (horizontal coefficients and their confidence intervals) that visualizes and compares the coefficients for the standardized `amenity_count` from all three Quantile Regression models (25th, 50th, and 75th quantiles). Label the quantiles clearly.
+
+Close-Ended Numerical Requests (Final Output)
+
+1.  Report the number of entries removed in the Outlier Treatment step (Step 3) as an integer.
+2.  Report the standardized coefficient for `amenity_count` from the 75th percentile Quantile Regression model, rounded to 4 decimals.
+3.  Report the Pseudo $R^2$ value for the 50th percentile (median) Quantile Regression model, rounded to 4 decimals.
+4.  Report the estimated Average Treatment Effect on the Treated (ATT) for the impact of Resale on `price_per_sqft` from the PSM analysis (Step 5), rounded to 2 decimals.
