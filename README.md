@@ -1,4 +1,4 @@
-SELECT schemaname, tablename, pg_size_pretty(pg_total_relation_size(schemaname || '.' || tablename))
+SELECT '"redservice.' || tablename || '"'
 FROM pg_tables
 WHERE schemaname = 'redservice'
 AND tablename LIKE '%_202508'
