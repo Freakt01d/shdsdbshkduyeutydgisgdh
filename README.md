@@ -1,8 +1,5 @@
-public static List<string> ExtractRolesFromJson(string json)
-{
-    JObject parsed = JObject.Parse(json);
-    return parsed["roleData"]?["roles"]
-                ?.Select(r => r["role"]?.ToString())
-                .Where(r => !string.IsNullOrEmpty(r))
-                .ToList() ?? new List<string>();
-}
+SELECT schemaname, tablename, pg_size_pretty(pg_total_relation_size(schemaname || '.' || tablename))
+FROM pg_tables
+WHERE schemaname = 'redservice'
+AND tablename LIKE '%_202508'
+ORDER BY tablename;
