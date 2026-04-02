@@ -1,28 +1,5 @@
-INSERT INTO redservice.t_report_configuration (
-    config_id,
-    workflow_name,
-    xml_type,
-    parent_config_id,
-    xml_attribute_name,
-    xml_element_name,
-    is_xml_attribute_repeated,
-    xml_attribute_value_delimeter,
-    report_col_name,
-    report_col_value_delimeter,
-    priority,
-    pkey
-)
-VALUES (
-    1, -- config_id
-    'workflow1', -- workflow_name
-    'type1', -- xml_type
-    NULL, -- parent_config_id (if optional)
-    'attr_name', -- xml_attribute_name
-    'element_name', -- xml_element_name
-    false, -- is_xml_attribute_repeated (boolean)
-    '|', -- xml_attribute_value_delimeter
-    'col_name', -- report_col_name
-    ',', -- report_col_value_delimeter
-    1, -- priority
-    1001 -- pkey
-);
+-- Find the blocking process
+SELECT pid, state, query, age(clock_timestamp(), query_start) AS duration
+FROM pg_stat_activity
+WHERE query ILIKE '%your_table_name%'
+  AND pid != pg_backend_pid();
