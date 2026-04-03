@@ -1,7 +1,5 @@
-SELECT c.relname AS partition,
-       pg_size_pretty(pg_total_relation_size(c.oid)) AS size
+SELECT pg_size_pretty(SUM(pg_total_relation_size(c.oid))) AS total_202509_size
 FROM pg_class c
 JOIN pg_namespace n ON n.oid = c.relnamespace
 WHERE n.nspname = 'reddy'
-  AND c.relname LIKE 't_ew_detail_audit_%202509%'
-ORDER BY pg_total_relation_size(c.oid) DESC;
+  AND c.relname LIKE 't_raw_detail_audit_%202509%';
