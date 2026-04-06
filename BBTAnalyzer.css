@@ -3,172 +3,127 @@ import os
 import time
 from datetime import datetime, date
 
-# ============ CONFIG ============
-
-HOST = “<SOURCE_HOST>”  # UPDATE THIS
-MONTH = “202508”
-OUTPUT = r”Z:\dumps”
+HOST = "<SOURCE_HOST>"
+MONTH = "202508"
+OUTPUT = r"Z:\dumps"
 MAX_PARALLEL = 22
 
-# ================================
-
-# Systems ordered biggest first
-
 SYSTEMS = [
-“riskserver”,
-“gold”,
-“eliot”,
-“astro”,
-“bga”,
-“demeter”,
-“efts”,
-“iridium”,
-“lma”,
-“onyx”,
-“pdc”,
-“sge”,
-“test”,
-“xone”,
-“xonepayment”,
+    "riskserver",
+    "gold",
+    "eliot",
+    "astro",
+    "bga",
+    "demeter",
+    "efts",
+    "iridium",
+    "lma",
+    "onyx",
+    "pdc",
+    "sge",
+    "test",
+    "xone",
+    "xonepayment",
 ]
 
 def get_days(year, month):
-“”“Return all valid days in month”””
-days = []
-for d in range(1, 32):
-try:
-date(year, month, d)
-days.append(d)
-except ValueError:
-pass
-return days
+    days = []
+    for d in range(1, 32):
+        try:
+            date(year, month, d)
+            days.append(d)
+        except ValueError:
+            pass
+    return days
 
 def main():
-os.makedirs(OUTPUT, exist_ok=True)
+    os.makedirs(OUTPUT, exist_ok=True)
+    year = int(MONTH[:4])
+    mon = int(MONTH[4:])
+    days = get_days(year, mon)
+    tasks = []
+    for sys in SYSTEMS:
+        for day in days:
+            date_str = f"{MONTH}{day:02d}"
+            table = f"redservice.t_raw_detail_audit_{sys}_{MONTH}_{date_str}"
+            outfile = os.path.join(OUTPUT, f"{sys}_{date_str}.dump")
+            tasks.append((sys, date_str, table, outfile))
+    total = len(tasks)
+    print(f"Total tasks: {total}")
+    print(f"Max parallel: {MAX_PARALLEL}")
+    print(f"Start: {datetime.now()}")
+    procs = []
+    completed = 0
+    failed = []
+    skipped = 0
+    start_time = time.time()
+    task_idx = 0
+    active_systems = set()
+    total_dumped = [0]
+    while task_idx < total or len(procs) > 0:
+        for p in procs[:]:
+            if p.poll() is not None:
+                completed += 1
+                elapsed = time.time() - start_time
+                dump_size = 0
+                if p.returncode != 0:
+                    failed.append(p._name)
+                else:
+                    try:
+                        dump_size = os.path.getsize(p._outfile)
+                        if dump_size < 1000:
+                            skipped += 1
+                            os.remove(p._outfile)
+                            dump_size = 0
+                    except:
+                        pass
+                total_dumped[0] += dump_size
+                elapsed_min = elapsed / 60
+                speed_mbs = (total_dumped[0] / (1024**2)) / elapsed if elapsed > 0 else 0
+                dumped_gb = total_dumped[0] / (1024**3)
+                remaining = total - completed
+                if completed > 0:
+                    avg_time = elapsed / completed
+                    eta_min = (remaining * avg_time) / 60
+                else:
+                    eta_min = 0
+                print(f"DONE {p._name} | {completed}/{total} | {dumped_gb:.1f} GB | {speed_mbs:.1f} MB/s | ETA: {eta_min:.0f} min")
+                p._sys_count[0] -= 1
+                if p._sys_count[0] == 0:
+                    print(f"\n>>> {p._sys} ALL COMPLETE | {completed}/{total} done | {elapsed_min:.1f} min elapsed\n")
+                procs.remove(p)
+        while len(procs) < MAX_PARALLEL and task_idx < total:
+            sys, date_str, table, outfile = tasks[task_idx]
+            task_idx += 1
+            cmd = f'pg_dump -h {HOST} -d audit -U redadmin -t "{table}*" -a -Fc -f "{outfile}"'
+            p = subprocess.Popen(cmd, shell=True, stderr=subprocess.DEVNULL)
+            p._outfile = outfile
+            p._name = f"{sys}_{date_str}"
+            p._sys = sys
+            if sys not in active_systems:
+                active_systems.add(sys)
+                sys_count = [sum(1 for t in tasks if t[0] == sys)]
+                globals()[f"_count_{sys}"] = sys_count
+            p._sys_count = globals()[f"_count_{sys}"]
+            procs.append(p)
+            print(f"[{completed}/{total}] Started {sys}_{date_str} | Active: {len(procs)}")
+        time.sleep(0.5)
+    elapsed = time.time() - start_time
+    mins = elapsed / 60
+    hrs = elapsed / 3600
+    total_size = 0
+    for f in os.listdir(OUTPUT):
+        if f.endswith(".dump"):
+            total_size += os.path.getsize(os.path.join(OUTPUT, f))
+    size_gb = total_size / (1024**3)
+    print(f"\nALL DONE!")
+    print(f"Total dump size: {size_gb:.2f} GB")
+    print(f"Total time: {mins:.1f} min ({hrs:.1f} hrs)")
+    print(f"Completed: {completed - skipped - len(failed)} partitions")
+    print(f"Skipped (empty): {skipped}")
+    if failed:
+        print(f"Failed ({len(failed)}): {failed}")
+    print(f"Finished: {datetime.now()}")
 
-```
-year = int(MONTH[:4])
-mon = int(MONTH[4:])
-days = get_days(year, mon)
-
-# Build all tasks - riskserver days first, then gold days, etc.
-tasks = []
-for sys in SYSTEMS:
-    for day in days:
-        date_str = f"{MONTH}{day:02d}"
-        table = f"redservice.t_raw_detail_audit_{sys}_{MONTH}_{date_str}"
-        outfile = os.path.join(OUTPUT, f"{sys}_{date_str}.dump")
-        tasks.append((sys, date_str, table, outfile))
-
-total = len(tasks)
-
-print(f"\n{'#'*60}")
-print(f"  PG_DUMP PARALLEL POOL - {MONTH}")
-print(f"  Host: {HOST}")
-print(f"  Output: {OUTPUT}")
-print(f"  Max parallel: {MAX_PARALLEL}")
-print(f"  Systems: {len(SYSTEMS)}")
-print(f"  Days: {len(days)}")
-print(f"  Total tasks: {total}")
-print(f"  Start: {datetime.now()}")
-print(f"{'#'*60}\n")
-
-procs = []
-completed = 0
-failed = []
-skipped = 0
-start_time = time.time()
-task_idx = 0
-active_systems = set()
-total_dumped = [0]  # bytes dumped so far
-
-while task_idx < total or len(procs) > 0:
-    # Check finished processes
-    for p in procs[:]:
-        if p.poll() is not None:
-            completed += 1
-            elapsed = time.time() - start_time
-            
-            dump_size = 0
-            if p.returncode != 0:
-                failed.append(p._name)
-            else:
-                try:
-                    dump_size = os.path.getsize(p._outfile)
-                    if dump_size < 1000:
-                        skipped += 1
-                        os.remove(p._outfile)
-                        dump_size = 0
-                except:
-                    pass
-            
-            total_dumped[0] += dump_size
-            
-            # Calculate speed and ETA
-            elapsed_min = elapsed / 60
-            speed_mbs = (total_dumped[0] / (1024**2)) / elapsed if elapsed > 0 else 0
-            dumped_gb = total_dumped[0] / (1024**3)
-            remaining = total - completed
-            if completed > 0:
-                avg_time = elapsed / completed
-                eta_min = (remaining * avg_time) / 60
-            else:
-                eta_min = 0
-            
-            print(f"  DONE {p._name} | {completed}/{total} | {dumped_gb:.1f} GB | {speed_mbs:.1f} MB/s | ETA: {eta_min:.0f} min")
-            
-            # Update active systems
-            p._sys_count[0] -= 1
-            if p._sys_count[0] == 0:
-                print(f"\n  >>> {p._sys} ALL COMPLETE | {completed}/{total} done | {elapsed_min:.1f} min elapsed\n")
-            
-            procs.remove(p)
-    
-    # Launch new tasks if slots available
-    while len(procs) < MAX_PARALLEL and task_idx < total:
-        sys, date_str, table, outfile = tasks[task_idx]
-        task_idx += 1
-        
-        cmd = f'pg_dump -h {HOST} -d audit -U redadmin -t "{table}*" -a -Fc -f "{outfile}"'
-        p = subprocess.Popen(cmd, shell=True, stderr=subprocess.DEVNULL)
-        p._outfile = outfile
-        p._name = f"{sys}_{date_str}"
-        p._sys = sys
-        
-        # Track per-system completion
-        if sys not in active_systems:
-            active_systems.add(sys)
-            sys_count = [sum(1 for t in tasks if t[0] == sys)]
-            globals()[f"_count_{sys}"] = sys_count
-        p._sys_count = globals()[f"_count_{sys}"]
-        
-        procs.append(p)
-        print(f"  [{completed}/{total}] Started {sys}_{date_str} | Active: {len(procs)}")
-    
-    time.sleep(0.5)
-
-elapsed = time.time() - start_time
-mins = elapsed / 60
-hrs = elapsed / 3600
-
-# Calculate total dump size
-total_size = 0
-for f in os.listdir(OUTPUT):
-    if f.endswith(".dump"):
-        total_size += os.path.getsize(os.path.join(OUTPUT, f))
-size_gb = total_size / (1024**3)
-
-print(f"\n{'#'*60}")
-print(f"  ALL DONE!")
-print(f"  Total dump size: {size_gb:.2f} GB")
-print(f"  Total time: {mins:.1f} min ({hrs:.1f} hrs)")
-print(f"  Completed: {completed - skipped - len(failed)} partitions")
-print(f"  Skipped (empty): {skipped}")
-if failed:
-    print(f"  Failed ({len(failed)}): {failed}")
-print(f"  Finished: {datetime.now()}")
-print(f"{'#'*60}")
-```
-
-if **name** == “**main**”:
-main()
+if __name__ == "__main__":
+    main()
