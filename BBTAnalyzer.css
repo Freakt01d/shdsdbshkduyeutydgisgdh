@@ -1,14 +1,28 @@
 import subprocess
 import os
 import time
+import threading
 from datetime import datetime, date
+from collections import deque
 
-HOST = "<SOURCE_HOST>"
+API_BASE = "https://api-datalake.red.prd.euw.gbis.sg-azure.com/fileshare/get-file?path="
+SHARE_PATH = "dumps"
+LOCAL_DIR = r"D:\restore_temp"
+TARGET_HOST = "<TARGET_HOST>"
+TARGET_PORT = "12499"
+TARGET_DB = "cmt_uat_pg"
+TARGET_USER = "cmtadm"
+MAX_RESTORE_PARALLEL = 8
+MAX_LOCAL_GB = 180
+
+SYSTEMS = ["astro","bga","demeter","efts","eliot","gold","iridium","lma","onyx","pdc","sge","test","xone","xonepayment","riskserver"]
 MONTH = "202508"
-OUTPUT = r"Z:\dumps"
-MAX_PARALLEL = 8
 
-SYSTEMS = ["riskserver","gold","eliot","astro","bga","demeter","efts","iridium","lma","onyx","pdc","sge","test","xone","xonepayment"]
+lock = threading.Lock()
+completed = [0]
+failed = []
+total_restored_bytes = [0]
+start_time = [0]
 
 def get_days(year, month):
     days = []
@@ -20,8 +34,56 @@ def get_days(year, month):
             pass
     return days
 
+def local_usage_gb():
+    total = 0
+    try:
+        for f in os.listdir(LOCAL_DIR):
+            fp = os.path.join(LOCAL_DIR, f)
+            if os.path.isfile(fp):
+                total += os.path.getsize(fp)
+    except:
+        pass
+    return total / (1024**3)
+
+def download(filename):
+    local_file = os.path.join(LOCAL_DIR, filename)
+    url = f"{API_BASE}{SHARE_PATH}/{filename}"
+    cmd = f'curl -s -o "{local_file}" "{url}"'
+    ret = subprocess.run(cmd, shell=True)
+    if ret.returncode != 0 or not os.path.exists(local_file):
+        return False
+    sz = os.path.getsize(local_file)
+    if sz < 500:
+        os.remove(local_file)
+        return False
+    return True
+
+def restore_and_delete(filename, total):
+    local_file = os.path.join(LOCAL_DIR, filename)
+    sz = os.path.getsize(local_file) / (1024**3)
+    rs_cmd = f'pg_restore -h {TARGET_HOST} -p {TARGET_PORT} -U {TARGET_USER} -d {TARGET_DB} --no-owner -a "{local_file}"'
+    rs_start = time.time()
+    ret = subprocess.run(rs_cmd, shell=True)
+    rs_time = time.time() - rs_start
+    with lock:
+        completed[0] += 1
+        total_restored_bytes[0] += os.path.getsize(local_file)
+        elapsed = time.time() - start_time[0]
+        gb = total_restored_bytes[0] / (1024**3)
+        speed = (total_restored_bytes[0] / (1024**2)) / elapsed if elapsed > 0 else 0
+        remaining = total - completed[0]
+        eta = (remaining * elapsed / completed[0]) / 60 if completed[0] > 0 else 0
+        status = "WARN" if ret.returncode != 0 else "DONE"
+        if ret.returncode != 0:
+            failed.append(filename)
+        print(f"  {status} {filename} | {sz:.2f} GB | {rs_time/60:.1f} min | {completed[0]}/{total} | Total: {gb:.1f} GB | {speed:.1f} MB/s | ETA: {eta:.0f} min | Disk: {local_usage_gb():.0f} GB")
+    try:
+        os.remove(local_file)
+    except:
+        pass
+
 def main():
-    os.makedirs(OUTPUT, exist_ok=True)
+    os.makedirs(LOCAL_DIR, exist_ok=True)
     year = int(MONTH[:4])
     mon = int(MONTH[4:])
     days = get_days(year, mon)
@@ -29,59 +91,46 @@ def main():
     for sys in SYSTEMS:
         for day in days:
             date_str = f"{MONTH}{day:02d}"
-            table = f"redservice.t_raw_detail_audit_{sys}_{MONTH}_{date_str}"
-            outfile = os.path.join(OUTPUT, f"{sys}_{date_str}.dump")
-            if os.path.exists(outfile) and os.path.getsize(outfile) > 1000:
-                print(f"SKIP {sys}_{date_str} (already exists {os.path.getsize(outfile)/(1024**3):.2f} GB)")
-                continue
-            tasks.append((sys, date_str, table, outfile))
+            filename = f"{sys}_{date_str}.dump"
+            tasks.append(filename)
     total = len(tasks)
-    print(f"\nTasks to run: {total}")
-    print(f"Max parallel: {MAX_PARALLEL}")
+    start_time[0] = time.time()
+    print(f"Total: {total} files")
+    print(f"Parallel restores: {MAX_RESTORE_PARALLEL}")
+    print(f"Max local disk: {MAX_LOCAL_GB} GB")
     print(f"Start: {datetime.now()}\n")
-    procs = []
-    completed = 0
-    failed = []
-    start_time = time.time()
-    task_idx = 0
-    total_bytes = 0
-    while task_idx < total or len(procs) > 0:
-        for p in procs[:]:
-            if p.poll() is not None:
-                completed += 1
-                elapsed = time.time() - start_time
-                sz = 0
-                try:
-                    sz = os.path.getsize(p._outfile)
-                except:
-                    pass
-                total_bytes += sz
-                gb = total_bytes / (1024**3)
-                speed = (total_bytes / (1024**2)) / elapsed if elapsed > 0 else 0
-                remaining = total - completed
-                eta = (remaining * elapsed / completed) / 60 if completed > 0 else 0
-                if p.returncode != 0 or sz < 1000:
-                    failed.append(p._name)
-                    print(f"FAIL {p._name} | {completed}/{total} | {gb:.1f} GB | {speed:.1f} MB/s | ETA: {eta:.0f} min")
-                else:
-                    szgb = sz / (1024**3)
-                    print(f"DONE {p._name} | {szgb:.2f} GB | {completed}/{total} | Total: {gb:.1f} GB | {speed:.1f} MB/s | ETA: {eta:.0f} min")
-                procs.remove(p)
-        while len(procs) < MAX_PARALLEL and task_idx < total:
-            sys, date_str, table, outfile = tasks[task_idx]
-            task_idx += 1
-            cmd = f'pg_dump -h {HOST} -d audit -U redadmin -t "{table}*" -a -Fc -Z 0 -f "{outfile}"'
-            p = subprocess.Popen(cmd, shell=True)
-            p._outfile = outfile
-            p._name = f"{sys}_{date_str}"
-            procs.append(p)
-            print(f"[{completed}/{total}] Started {sys}_{date_str} | Active: {len(procs)}")
-        time.sleep(1)
-    elapsed = time.time() - start_time
+    restore_threads = []
+    downloaded = 0
+    skipped = 0
+    for i, filename in enumerate(tasks):
+        while local_usage_gb() >= MAX_LOCAL_GB:
+            restore_threads = [t for t in restore_threads if t.is_alive()]
+            time.sleep(2)
+        while len([t for t in restore_threads if t.is_alive()]) >= MAX_RESTORE_PARALLEL:
+            time.sleep(1)
+        print(f"[{i+1}/{total}] Downloading {filename}...")
+        ok = download(filename)
+        if not ok:
+            print(f"  SKIP {filename} (empty or failed)")
+            skipped += 1
+            with lock:
+                completed[0] += 1
+            continue
+        downloaded += 1
+        sz = os.path.getsize(os.path.join(LOCAL_DIR, filename)) / (1024**3)
+        print(f"  Downloaded {filename} ({sz:.2f} GB) | Disk: {local_usage_gb():.0f} GB")
+        t = threading.Thread(target=restore_and_delete, args=(filename, total))
+        t.start()
+        restore_threads.append(t)
+        restore_threads = [t for t in restore_threads if t.is_alive()]
+    for t in restore_threads:
+        t.join()
+    elapsed = time.time() - start_time[0]
     print(f"\nALL DONE!")
-    print(f"Total: {total_bytes/(1024**3):.2f} GB")
+    print(f"Total restored: {total_restored_bytes[0]/(1024**3):.2f} GB")
+    print(f"Downloaded: {downloaded} | Skipped: {skipped}")
     print(f"Time: {elapsed/60:.1f} min ({elapsed/3600:.1f} hrs)")
-    print(f"Completed: {completed - len(failed)}")
+    print(f"Completed: {completed[0] - len(failed) - skipped}")
     if failed:
         print(f"Failed ({len(failed)}): {failed}")
     print(f"Finished: {datetime.now()}")
