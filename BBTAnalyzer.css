@@ -1,5 +1,21 @@
-SELECT pg_size_pretty(SUM(pg_total_relation_size(c.oid))) AS total_size
-FROM pg_class c
-JOIN pg_namespace n ON n.oid = c.relnamespace
-WHERE n.nspname = 'redservice'
-  AND c.relname LIKE 't_raw_detail_audit_%202509%';
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pg-dumper
+  namespace: default
+spec:
+  containers:
+  - name: dumper
+    image: postgres:16
+    resources:
+      requests:
+        cpu: "8"
+        memory: "16Gi"
+      limits:
+        cpu: "16"
+        memory: "32Gi"
+    env:
+    - name: PGPASSWORD
+      value: "<YOUR_PASSWORD>"
+    command: ["sleep", "infinity"]
+  restartPolicy: Never
