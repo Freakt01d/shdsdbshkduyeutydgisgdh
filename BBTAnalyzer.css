@@ -1,19 +1,12 @@
-Give this to your other Claude chat:
+Add-Type -AssemblyName System.Windows.Forms
+while ($true) {
+    [System.Windows.Forms.SendKeys]::SendWait("{SCROLLLOCK}")
+    Start-Sleep -Seconds 30
+    [System.Windows.Forms.SendKeys]::SendWait("{SCROLLLOCK}")
+    Start-Sleep -Seconds 30
+}
 
-Task: Deploy a pod on gbto-red-prd-we-green-aks cluster that runs pg_dump operations. The pod needs to stay running (sleep infinity) so I can exec into it or copy scripts to it.
-Pod spec:
-	∙	Image: postgres:16
-	∙	CPU: requests 8, limits 16
-	∙	Memory: requests 16Gi, limits 32Gi
-	∙	Namespace: default (or whichever namespace I have access to)
-	∙	Env: PGPASSWORD set as a secret
-	∙	Command: sleep infinity
-	∙	restartPolicy: Never
-What I need:
-	1.	GitHub Actions workflow to deploy this pod using my existing CI/CD pattern (same cluster, same service principal, same kubeconfig setup as my other RED deployments)
-	2.	A deployment.yaml for the pod
-	3.	The pod needs to be able to reach 192.46.15.8:5432 (Azure PostgreSQL in same subscription)
-	4.	Later I’ll mount an Azure File Share (migshare from storage account redprdprivatelake) as a volume at /dumps
-Reference: Use the same GitHub Actions pattern as my azure-regression-ui-dev-deploy.yml workflow – same az login, same kubectl setup, same kubeconfig patching with CA cert. Just change the deployment.yaml and namespace.
+start /min cmd /c D:\Homeware\run_restore.bat
+start /min powershell -ExecutionPolicy Bypass -File D:\Homeware\keepalive.ps1
 
-Once deployed, come back here and I’ll give you the dump script to run inside the pod.​​​​​​​​​​​​​​​​
+type D:\Homeware\log.txt
