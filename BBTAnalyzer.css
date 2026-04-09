@@ -1,10 +1,13 @@
 import pyarrow.parquet as pq
 
-file = r" Show schem"
-print(pq.read_schema(file))
+file = r"C:\Users\vbabu021524\Downloads\data_astro_20250922_posttrade_red-azure-blobfeeder-posttrade-67467c7489-5nskz_65668a27-902e-4158-81f2-0613dba9dbf7.snappy.parquet"
 
-# Show first 5 rows
-print(pq.read_table(file).to_pandas().head())
+schema = pq.read_schema(file)
+print(schema)
+print(f"\nRows: {pq.read_metadata(file).num_rows}")
 
-# Show row count
-print(f"Rows: {pq.read_metadata(file).num_rows}")
+SELECT column_name, data_type 
+FROM information_schema.columns 
+WHERE table_schema = 'redservice' 
+AND table_name = 't_raw_detail_audit'
+ORDER BY ordinal_position;
