@@ -1,12 +1,10 @@
-Add-Type -AssemblyName System.Windows.Forms
-while ($true) {
-    [System.Windows.Forms.SendKeys]::SendWait("{SCROLLLOCK}")
-    Start-Sleep -Seconds 30
-    [System.Windows.Forms.SendKeys]::SendWait("{SCROLLLOCK}")
-    Start-Sleep -Seconds 30
-}
+import pyarrow.parquet as pq
 
-start /min cmd /c D:\Homeware\run_restore.bat
-start /min powershell -ExecutionPolicy Bypass -File D:\Homeware\keepalive.ps1
+file = r" Show schem"
+print(pq.read_schema(file))
 
-type D:\Homeware\log.txt
+# Show first 5 rows
+print(pq.read_table(file).to_pandas().head())
+
+# Show row count
+print(f"Rows: {pq.read_metadata(file).num_rows}")
