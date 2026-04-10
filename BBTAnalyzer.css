@@ -5,13 +5,15 @@ file = input("Enter parquet file path: ")
 pf = pq.ParquetFile(file)
 print(f"Total rows: {pf.metadata.num_rows}")
 
-table = pq.read_table(file, coerce_int96_timestamp_unit="ns")
+cols = ["AuditDate","ApplicationName","RedId","DealId","ElementaryClientId","BookingEntityId","ProductStructure","TypObj","RequestTs","ResponseTs","Request","Response"]
+
+table = pq.read_table(file, columns=cols, coerce_int96_timestamp_unit="ns")
 batch = table.slice(0, min(5, len(table)))
 
-print("\n=== FIRST 5 ROWS ===")
+print("\n=== FIRST 5 ROWS (without Flags) ===")
 for i in range(len(batch)):
     print(f"\n--- Row {i+1} ---")
-    for col in batch.column_names:
+    for col in cols:
         try:
             val = batch.column(col)[i].as_py()
             if isinstance(val, str) and len(val) > 200:
@@ -20,7 +22,20 @@ for i in range(len(batch)):
         except:
             print(f"  {col}: <error>")
 
-print("\n=== REQUEST DUPLICATION (first 100 rows) ===")
+print("\n=== REQUEST DUPLICATION ===")
 reqs = [str(r)[:500] for r in table.column("Request").to_pylist()[:100] if r]
 print(f"  Total: {len(reqs)}")
 print(f"  Unique: {len(set(reqs))}")
+
+# Read Flags raw using low-level reader
+print("\n=== FLAGS (raw read) ===")
+import pyarrow.parquet as pq2
+reader = pq2.ParquetFile(file)
+for batch in reader.iter_batches(batch_size=5, columns=["Flags"]):
+    print(f"  Flags batch shape: {batch.num_rows} rows, {batch.num_columns} cols")
+    print(f"  Flags column names: {batch.column_names}")
+    for col in batch.column_names:
+        print(f"  {col} length: {len(batch.column(col))}")
+        for i in range(min(3, len(batch.column(col)))):
+            print(f"    [{i}]: {batch.column(col)[i].as_py()}")
+    break
