@@ -1,5 +1,4 @@
 import pyarrow.parquet as pq
-import json
 
 file = input("Enter parquet file path: ")
 
@@ -25,11 +24,3 @@ print("\n=== REQUEST DUPLICATION (first 100 rows) ===")
 reqs = [str(r)[:500] for r in table.column("Request").to_pylist()[:100] if r]
 print(f"  Total: {len(reqs)}")
 print(f"  Unique: {len(set(reqs))}")
-
-print("\n=== FLAGS SAMPLE ===")
-for i in range(min(3, len(batch))):
-    try:
-        f = batch.column("Flags")[i].as_py()
-        print(f"  Row {i+1}: {f}")
-    except:
-        print(f"  Row {i+1}: <error>")
