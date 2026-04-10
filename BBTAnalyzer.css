@@ -4,48 +4,32 @@ import json
 file = input("Enter parquet file path: ")
 
 pf = pq.ParquetFile(file)
-schema = pf.schema
-print("\n=== SCHEMA ===")
-print(schema)
-print(f"\nTotal rows: {pf.metadata.num_rows}")
+print(f"Total rows: {pf.metadata.num_rows}")
 
-# Read first 5 rows
-table = pf.read_row_groups([0])
+table = pq.read_table(file, coerce_int96_timestamp_unit="ns")
 batch = table.slice(0, min(5, len(table)))
 
 print("\n=== FIRST 5 ROWS ===")
 for i in range(len(batch)):
     print(f"\n--- Row {i+1} ---")
-    for col in schema.names:
-        val = batch.column(col)[i].as_py()
-        if isinstance(val, str) and len(val) > 200:
-            val = val[:200] + "..."
-        print(f"  {col}: {val}")
+    for col in batch.column_names:
+        try:
+            val = batch.column(col)[i].as_py()
+            if isinstance(val, str) and len(val) > 200:
+                val = val[:200] + "..."
+            print(f"  {col}: {val}")
+        except:
+            print(f"  {col}: <error>")
 
-# Check Flags specifically
+print("\n=== REQUEST DUPLICATION (first 100 rows) ===")
+reqs = [str(r)[:500] for r in table.column("Request").to_pylist()[:100] if r]
+print(f"  Total: {len(reqs)}")
+print(f"  Unique: {len(set(reqs))}")
+
 print("\n=== FLAGS SAMPLE ===")
-flags_col = batch.column("Flags")
-for i in range(min(3, len(flags_col))):
-    f = flags_col[i].as_py()
-    print(f"\nRow {i+1} Flags: {json.dumps(f, indent=2, default=str)}")
-
-# Check unique ApplicationNames
-full = pf.read_row_groups([0])
-apps = full.column("ApplicationName").to_pylist()
-unique_apps = set(apps[:1000])
-print(f"\n=== UNIQUE ApplicationNames (first 1000 rows) ===")
-for a in sorted(unique_apps):
-    print(f"  {a}")
-
-# Check if multiple rows share same Request/Response
-reqs = full.column("Request").to_pylist()[:100]
-unique_reqs = len(set(id(r) for r in reqs))
-dupes = len(reqs) - len(set(reqs))
-print(f"\n=== REQUEST DUPLICATION (first 100 rows) ===")
-print(f"  Total rows: {len(reqs)}")
-print(f"  Unique requests: {len(set(reqs))}")
-print(f"  Duplicates: {dupes}")
-if dupes > 0:
-    print("  >> Multiple parquet rows share same Request XML = one detail_id maps to multiple audit rows")
-else:
-    print("  >> Each row has unique Request = 1:1 mapping")
+for i in range(min(3, len(batch))):
+    try:
+        f = batch.column("Flags")[i].as_py()
+        print(f"  Row {i+1}: {f}")
+    except:
+        print(f"  Row {i+1}: <error>")
