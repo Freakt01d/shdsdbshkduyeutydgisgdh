@@ -1,38 +1,13 @@
-@app.post('/datalake/upload-file')
-async def upload_file(path: str = "", request: Request = None):
-    try:
-        if not path:
-            return JSONResponse(content={"error": "path parameter is required"}, status_code=400)
-        filesystem_client = service_client.get_file_system_client(DATA_LAKE_FILESYSTEM)
-        dir_path = path.rsplit('/', 1)[0] if '/' in path else ""
-        if dir_path:
-            dir_client = filesystem_client.get_directory_client(dir_path)
-            dir_client.create_directory()
-        file_client = filesystem_client.get_file_client(path)
-        body = await request.body()
-        file_client.upload_data(body, overwrite=True)
-        return JSONResponse(content={"uploaded": path, "size": len(body)})
-    except Exception as e:
-        return JSONResponse(content={"error": str(e)}, status_code=500)
+import requests
 
-@app.post('/datalake/upload-file-stream')
-async def upload_file_stream(path: str = "", request: Request = None):
-    try:
-        if not path:
-            return JSONResponse(content={"error": "path parameter is required"}, status_code=400)
-        filesystem_client = service_client.get_file_system_client(DATA_LAKE_FILESYSTEM)
-        dir_path = path.rsplit('/', 1)[0] if '/' in path else ""
-        if dir_path:
-            dir_client = filesystem_client.get_directory_client(dir_path)
-            dir_client.create_directory()
-        file_client = filesystem_client.get_file_client(path)
-        file_client.create_file()
-        offset = 0
-        async for chunk in request.stream():
-            if chunk:
-                file_client.append_data(chunk, offset=offset)
-                offset += len(chunk)
-        file_client.flush_data(offset)
-        return JSONResponse(content={"uploaded": path, "size": offset})
-    except Exception as e:
-        return JSONResponse(content={"error": str(e)}, status_code=500)
+API = ""
+
+# Create a test file
+test_data = b"hello world test"
+
+r = requests.post(
+    f"{API}/datalake/upload-file",
+    params={"path": "v2/test_upload.txt"},
+    data=test_data
+)
+print(r.status_code, r.json())
