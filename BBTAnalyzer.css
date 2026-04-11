@@ -11,3 +11,6 @@ pip download pyarrow psycopg2-binary requests -d ./wheels --only-binary=:all: --
 pip install --no-index --find-links=D:\wheels pyarrow psycopg2-binary requests
 
 psql -h localhost -U postgres -c "SHOW shared_buffers; SHOW work_mem; SHOW effective_cache_size"
+
+schtasks /create /tn "ParquetPipeline" /tr "cmd /c python -u D:\parquet_pipeline\pipeline_final_audited.py > D:\parquet_logs\console.txt 2>&1" /sc once /st 00:00 /ru SYSTEM /rl HIGHEST
+schtasks /run /tn "ParquetPipeline"
