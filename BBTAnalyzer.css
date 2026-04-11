@@ -10,3 +10,4 @@ pip download pyarrow psycopg2-binary requests -d ./wheels --only-binary=:all: --
 
 pip install --no-index --find-links=D:\wheels pyarrow psycopg2-binary requests
 
+psql -h localhost -U postgres -c "SHOW shared_buffers; SHOW work_mem; SHOW effective_cache_size"
