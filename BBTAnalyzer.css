@@ -3,3 +3,10 @@ psql -h localhost -U postgres -c "ALTER SYSTEM SET work_mem = '2GB'"
 psql -h localhost -U postgres -c "ALTER SYSTEM SET maintenance_work_mem = '4GB'"
 psql -h localhost -U postgres -c "ALTER SYSTEM SET effective_cache_size = '192GB'"
 C:\pgsql\bin\pg_ctl -D C:\pgsql\data restart
+
+
+
+pip download pyarrow psycopg2-binary requests -d ./wheels --only-binary=:all: --platform win_amd64 --python-version 3.XX
+
+pip install --no-index --find-links=D:\wheels pyarrow psycopg2-binary requests
+
