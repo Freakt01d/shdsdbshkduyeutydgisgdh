@@ -1,13 +1,13 @@
-import requests
+import pyarrow.parquet as pq
 
-API = ""
+file = input("Path: ")
+pf = pq.ParquetFile(file)
+print(f"Total rows: {pf.metadata.num_rows}")
+print(f"Num row groups: {pf.metadata.num_row_groups}")
 
-# Create a test file
-test_data = b"hello world test"
-
-r = requests.post(
-    f"{API}/datalake/upload-file",
-    params={"path": "v2/test_upload.txt"},
-    data=test_data
-)
-print(r.status_code, r.json())
+for i in range(pf.metadata.num_row_groups):
+    rg = pf.metadata.row_group(i)
+    print(f"\nRow group {i}: {rg.num_rows} rows")
+    for j in range(rg.num_columns):
+        col = rg.column(j)
+        print(f"  Col {j} ({col.path_in_schema}): {col.num_values} values")
