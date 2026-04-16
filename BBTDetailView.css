@@ -10,3 +10,15 @@ getFileContent(path: string): Observable<FileContent> {
 }
 
 import { Observable, map } from 'rxjs';
+
+# Copy
+azcopy copy \
+  "https://redprdprivatelake.blob.core.windows.net/regression/businessDay=2026-02-06/*?<SAS>" \
+  "https://redprdprivatelake.blob.core.windows.net/red/v2/businessDay=2026-02-06/?<SAS>" \
+  --recursive
+
+# Verify, then delete source
+azcopy remove \
+  "https://redprdprivatelake.blob.core.windows.net/regression/businessDay=2026-02-06?<SAS>" \
+  --recursive
+
