@@ -1,2 +1,12 @@
-type D:\Homeware\pipeline_final_audited.py | findstr -i "coerce\|int96\|ParquetWriter\|write_table"
-type D:\Homeware\pipeline_final_audited.py | findstr -i "timeout\|requests.get\|stream"
+// ✅ FIXED — reads raw stream as text, wraps into {content}
+getFileContent(path: string): Observable<FileContent> {
+    const url = `${this.baseUrl}/get-file`;
+    return this.http.get(url, {
+        params: { path },
+        responseType: 'text'
+    }).pipe(
+        map((rawText: string) => ({ file: path, content: rawText }))
+    );
+}
+
+import { Observable, map } from 'rxjs';
