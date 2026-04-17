@@ -1,24 +1,7 @@
-// ✅ FIXED — reads raw stream as text, wraps into {content}
-getFileContent(path: string): Observable<FileContent> {
-    const url = `${this.baseUrl}/get-file`;
-    return this.http.get(url, {
-        params: { path },
-        responseType: 'text'
-    }).pipe(
-        map((rawText: string) => ({ file: path, content: rawText }))
-    );
-}
+Get-ChildItem D:\Homeware, D:\RED.AUDIT, "C:\Program Files\NetprobeNT" -Recurse `
+  -Include *.ps1,*.bat,*.cmd,*.py,*.xml -ErrorAction SilentlyContinue |
+  Select-String -Pattern "AKS_ReportFilesSize_Compare" -List |
+  Select-Object Path
 
-import { Observable, map } from 'rxjs';
-
-# Copy
-azcopy copy \
-  "https://redprdprivatelake.blob.core.windows.net/regression/businessDay=2026-02-06/*?<SAS>" \
-  "https://redprdprivatelake.blob.core.windows.net/red/v2/businessDay=2026-02-06/?<SAS>" \
-  --recursive
-
-# Verify, then delete source
-azcopy remove \
-  "https://redprdprivatelake.blob.core.windows.net/regression/businessDay=2026-02-06?<SAS>" \
-  --recursive
-
+# Also check scheduled tasks - the generator is almost certainly scheduled
+schtasks /query /fo LIST /v | Select-String -Context 0,3 "AKS|ReportFilesSize|Compare"
