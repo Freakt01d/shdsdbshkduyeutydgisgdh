@@ -17,4 +17,6 @@ schtasks /run /tn "ParquetPipeline"
 
 D:\parquet_pipeline\.venv\Scripts\pip install --no-index --find-links=D:\Downloads\wheels\wheels requests pyarrow psycopg2-binary
 
+schtasks /create /tn "ParquetPipeline" /tr "cmd /c \"D:\parquet_pipeline\.venv\Scripts\python.exe\" -u D:\parquet_pipeline\pipeline_final_audited.py > D:\parquet_logs\console.txt 2>&1" /sc once /st 00:00 /ru SYSTEM /rl HIGHEST /f
+schtasks /run /tn "ParquetPipeline"
 
