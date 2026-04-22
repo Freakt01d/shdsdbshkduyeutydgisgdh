@@ -17,3 +17,11 @@ SELECT
     pg_size_pretty(MAX(octet_length(request) + octet_length(COALESCE(response, '')))::bigint) AS max_payload,
     pg_size_pretty(SUM(octet_length(request) + octet_length(COALESCE(response, '')))::bigint) AS total_payload
 FROM redservice.t_raw_detail_audit_riskserver_202509_20250901;
+
+
+SELECT 
+    reltuples::bigint AS estimated_rows,
+    pg_size_pretty(pg_total_relation_size('redservice.t_raw_detail_audit_riskserver_202512_20251217')) AS total,
+    pg_size_pretty((pg_total_relation_size('redservice.t_raw_detail_audit_riskserver_202512_20251217') / NULLIF(reltuples, 0))::bigint) AS avg_per_row
+FROM pg_class
+WHERE oid = 'redservice.t_raw_detail_audit_riskserver_202512_20251217'::regclass;
