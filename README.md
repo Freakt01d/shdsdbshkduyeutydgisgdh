@@ -49,23 +49,25 @@ HOSTNAME = socket.gethostname()
 DOWNLOAD_BATCH = 5
 PARALLEL_DOWNLOADS = 10
 PARALLEL_RESTORES = 4
-PARALLEL_PARQUET = 6          # was 2 - more parallel partition processing
+PARALLEL_PARQUET = 6
 PARALLEL_UPLOADS = 4
 
+# Download resilience
+DOWNLOAD_MAX_RETRIES = 5
+DOWNLOAD_CONNECT_TIMEOUT = 30       # seconds
+DOWNLOAD_READ_TIMEOUT = 1800        # 30 min per chunk-read
+
 # Output format (DO NOT CHANGE - must match BlobFeeder)
-ROW_GROUP_SIZE = 1000         # row group size inside parquet file
-MAX_FILE_SIZE_MB = 100        # target file size
+ROW_GROUP_SIZE = 1000
+MAX_FILE_SIZE_MB = 100
 
-# Build buffer - how many rows to accumulate before calling build_table/write_table
-# Bigger = less Python overhead, but bigger in-memory allocation.
-# Split by system because big-XML systems (riskserver) would overshoot 100MB
-# file target with huge buffers.
-BUILD_BATCH_BIG = 5000        # riskserver, eliot - big XML per row
-BUILD_BATCH_SMALL = 50000     # all other systems - small XML per row
+# Build buffer - rows accumulated before calling build_table/write_table
+BUILD_BATCH_BIG = 5000          # riskserver, eliot (big XML per row)
+BUILD_BATCH_SMALL = 50000       # all other systems
 
-DB_FETCH_SIZE = 100000        # was 10000 - fewer server round-trips
+DB_FETCH_SIZE = 100000
 
-# Disk safety: big systems restore fewer days at once
+# Disk safety
 BIG_SYSTEMS = ["riskserver", "eliot"]
 RESTORE_BATCH_BIG = 2
 RESTORE_BATCH_SMALL = 5
@@ -73,14 +75,13 @@ RESTORE_BATCH_SMALL = 5
 # Processing order
 MONTHS = ["202510", "202509", "202508"]
 
-# UPDATE THIS PER SERVER - split between 2 servers
+# UPDATE THIS PER SERVER
 SYSTEMS = [
     "riskserver", "gold", "eliot", "astro", "bga", "demeter", "efts",
     "iridium", "lma", "onyx", "pdc", "sge", "test", "xone", "xonepayment"
 ]
 # ================================
 
-# Setup
 os.makedirs(LOCAL_TEMP, exist_ok=True)
 os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -128,7 +129,6 @@ SCHEMA = pa.schema([
     pa.field("Flags", FLAGS_TYPE),
 ])
 
-# Background upload pool
 upload_pool = ThreadPoolExecutor(max_workers=PARALLEL_UPLOADS)
 pending_uploads = []
 
@@ -155,25 +155,70 @@ def disk_free_gb(path="D:\\"):
         return 999
 
 
-# ============ DOWNLOAD ============
+# ============ DOWNLOAD (resumable, retrying) ============
 
 def download_one(folder, filename, local_path):
+    """Download with retry and HTTP Range resume. Keeps partial file between attempts."""
     url = f"{DOWNLOAD_API}?path={folder}/{filename}"
-    try:
-        r = requests.get(url, stream=True, timeout=600)
-        if r.status_code != 200:
+    timeout = (DOWNLOAD_CONNECT_TIMEOUT, DOWNLOAD_READ_TIMEOUT)
+
+    for attempt in range(DOWNLOAD_MAX_RETRIES):
+        try:
+            resume_pos = os.path.getsize(local_path) if os.path.exists(local_path) else 0
+            headers = {}
+            if resume_pos > 0:
+                headers["Range"] = f"bytes={resume_pos}-"
+
+            r = requests.get(url, stream=True, timeout=timeout, headers=headers)
+
+            if r.status_code not in (200, 206):
+                log.warning(f"Download {filename} attempt {attempt+1}: HTTP {r.status_code}")
+                if r.status_code != 206 and os.path.exists(local_path):
+                    os.remove(local_path)
+                time.sleep(5 * (attempt + 1))
+                continue
+
+            # Append when resuming (206), else start fresh
+            if resume_pos > 0 and r.status_code == 206:
+                mode = "ab"
+            else:
+                mode = "wb"
+                if os.path.exists(local_path):
+                    os.remove(local_path)
+
+            with open(local_path, mode) as f:
+                for chunk in r.iter_content(chunk_size=16 * 1024 * 1024):
+                    if chunk:
+                        f.write(chunk)
+
+            # Sanity check
+            if os.path.getsize(local_path) < 500:
+                os.remove(local_path)
+                log.warning(f"Download {filename}: file too small, discarding")
+                return False
+
+            if attempt > 0:
+                log.info(f"    Download {filename} succeeded on attempt {attempt+1}")
+            return True
+
+        except (requests.exceptions.ChunkedEncodingError,
+                requests.exceptions.ConnectionError,
+                requests.exceptions.ReadTimeout,
+                requests.exceptions.Timeout) as e:
+            got = os.path.getsize(local_path) if os.path.exists(local_path) else 0
+            log.warning(f"Download {filename} attempt {attempt+1}/{DOWNLOAD_MAX_RETRIES} "
+                        f"failed ({got/(1024**2):.0f}MB so far): {str(e)[:200]}")
+            # Keep partial file for resume on next attempt
+            time.sleep(min(60, 10 * (attempt + 1)))
+            continue
+        except Exception as e:
+            log.error(f"Download {filename} unexpected error: {e}")
+            if os.path.exists(local_path):
+                os.remove(local_path)
             return False
-        with open(local_path, "wb") as f:
-            for chunk in r.iter_content(chunk_size=16 * 1024 * 1024):
-                if chunk:
-                    f.write(chunk)
-        if os.path.getsize(local_path) < 500:
-            os.remove(local_path)
-            return False
-        return True
-    except Exception as e:
-        log.error(f"Download error {filename}: {e}")
-        return False
+
+    log.error(f"Download {filename} FAILED after {DOWNLOAD_MAX_RETRIES} attempts")
+    return False
 
 
 def download_batch(folder, sys_name, batch_days, month):
@@ -232,7 +277,6 @@ def restore_one(dump_path, label):
 
 
 def restore_sub_batch(sub_batch, sys_name):
-    """Restore a sub-batch of days. Delete dump files after restore."""
     restored = []
     with ThreadPoolExecutor(max_workers=PARALLEL_RESTORES) as pool:
         futures = {}
@@ -245,7 +289,6 @@ def restore_sub_batch(sub_batch, sys_name):
             dok = fd.result()
             aok = fa.result()
 
-            # Always delete local dumps after restore attempt
             for p in [dl, al]:
                 if os.path.exists(p):
                     os.remove(p)
@@ -320,7 +363,7 @@ def has_existing_files(app, yyyymm, biz_day):
     return False
 
 
-# ============ XML PARSING (lxml - C-based, 3-10x faster than xml.etree) ============
+# ============ XML PARSING (lxml) ============
 
 def parse_flags(response_xml):
     if not response_xml:
@@ -343,11 +386,12 @@ def make_writer(parquet_dir, sys_name, date_str):
     guid = str(uuid.uuid4())
     filename = f"data_{sys_name}_{date_str}_histmig_{HOSTNAME}_{guid}.snappy.parquet"
     filepath = os.path.join(parquet_dir, filename)
+    # Schema already declares pa.timestamp("ns") so no coerce needed.
+    # int96 flag keeps BlobFeeder-compatible timestamp encoding.
     writer = pq.ParquetWriter(
         filepath, SCHEMA,
         compression="snappy",
         use_deprecated_int96_timestamps=True,
-        coerce_timestamps="ns",
     )
     return writer, filepath
 
@@ -377,7 +421,6 @@ def process_one_partition(sys_name, month, day, upload_base):
     detail_table = f"redservice.t_raw_detail_audit_{sys_name}_{month}_{date_str}"
     audit_table = f"redservice.t_raw_audit_{sys_name}_{month}_{date_str}"
 
-    # Pick build batch size based on system (big XML -> small buffer to hit ~100MB)
     build_batch = BUILD_BATCH_BIG if sys_name in BIG_SYSTEMS else BUILD_BATCH_SMALL
 
     conn = None
@@ -450,13 +493,11 @@ def process_one_partition(sys_name, month, day, upload_base):
                         file_count += 1
                         writer, cur_file = make_writer(pq_dir, sys_name, date_str)
 
-                    # write_table with row_group_size=1000 produces 1000-row
-                    # row groups in the output parquet, matching BlobFeeder format,
-                    # regardless of how many rows are in 'batch'.
+                    # row_group_size=1000 ensures output parquet has 1000-row
+                    # row groups, matching BlobFeeder format.
                     writer.write_table(build_table(batch), row_group_size=ROW_GROUP_SIZE)
                     row_count += len(batch)
 
-                    # Check size without closing writer
                     try:
                         cur_size = os.path.getsize(cur_file)
                     except:
@@ -470,7 +511,6 @@ def process_one_partition(sys_name, month, day, upload_base):
                         writer = None
                         cur_file = None
 
-        # Remaining buffer
         if buf:
             if writer is None:
                 file_count += 1
@@ -478,7 +518,6 @@ def process_one_partition(sys_name, month, day, upload_base):
             writer.write_table(build_table(buf), row_group_size=ROW_GROUP_SIZE)
             row_count += len(buf)
 
-        # Close and upload final file
         if writer:
             writer.close()
             if cur_file and os.path.exists(cur_file):
@@ -524,7 +563,6 @@ def truncate_tables(sys_name, month, date_str):
 
 
 def process_and_truncate(sys_name, month, day, date_str, year, mon):
-    """Full cycle for one partition: check existing -> parquet -> truncate"""
     biz_day = f"{year}-{mon:02d}-{day:02d}"
 
     existing = has_existing_files(sys_name, month, biz_day)
@@ -564,7 +602,7 @@ def main():
     log.info(f"  Host: {HOSTNAME}")
     log.info(f"  Systems: {len(SYSTEMS)} -> {SYSTEMS}")
     log.info(f"  Months: {MONTHS}")
-    log.info(f"  Download batch: {DOWNLOAD_BATCH} days")
+    log.info(f"  Download batch: {DOWNLOAD_BATCH} days | retries={DOWNLOAD_MAX_RETRIES} | read_timeout={DOWNLOAD_READ_TIMEOUT}s")
     log.info(f"  Restore batch: big={RESTORE_BATCH_BIG} small={RESTORE_BATCH_SMALL}")
     log.info(f"  Parallel: dl={PARALLEL_DOWNLOADS} restore={PARALLEL_RESTORES} pq={PARALLEL_PARQUET} upload={PARALLEL_UPLOADS}")
     log.info(f"  Build batch: big={BUILD_BATCH_BIG} small={BUILD_BATCH_SMALL}")
@@ -593,7 +631,6 @@ def main():
                 dl_days = days[dl_start:dl_start + DOWNLOAD_BATCH]
                 log.info(f"\n  Download batch: days {dl_days[0]}-{dl_days[-1]}")
 
-                # Check disk space
                 free = disk_free_gb()
                 if free < 50:
                     log.warning(f"  LOW DISK: {free:.1f} GB free. Waiting for uploads...")
@@ -603,7 +640,6 @@ def main():
                         log.error(f"  CRITICAL: only {free:.1f} GB free. Skipping batch.")
                         continue
 
-                # Step 1: Download all 5 days (10 dumps) in parallel
                 dl_t0 = time.time()
                 downloaded = download_batch(folder, sys_name, dl_days, month)
                 log.info(f"  Downloaded {len(downloaded)}/{len(dl_days)} in {time.time()-dl_t0:.0f}s")
@@ -611,13 +647,11 @@ def main():
                 if not downloaded:
                     continue
 
-                # Step 2 & 3: Restore and process in sub-batches (disk safe)
                 for sub_start in range(0, len(downloaded), restore_batch_size):
                     sub = downloaded[sub_start:sub_start + restore_batch_size]
                     sub_days = [d[1] for d in sub]
                     log.info(f"\n  Restore sub-batch: {sub_days}")
 
-                    # Restore
                     rs_t0 = time.time()
                     restored = restore_sub_batch(sub, sys_name)
                     log.info(f"  Restored {len(restored)}/{len(sub)} in {time.time()-rs_t0:.0f}s")
@@ -625,7 +659,6 @@ def main():
                     if not restored:
                         continue
 
-                    # Parallel parquet generation
                     pq_t0 = time.time()
                     with ThreadPoolExecutor(max_workers=PARALLEL_PARQUET) as pq_pool:
                         pq_futures = []
@@ -638,18 +671,15 @@ def main():
                             except Exception as e:
                                 log.error(f"  Parquet thread error: {e}")
 
-                    # Flush uploads before next sub-batch to free disk
                     flush_uploads()
                     log.info(f"  Sub-batch done in {(time.time()-pq_t0)/60:.1f} min | Disk: {disk_free_gb():.0f} GB free")
 
-                # Progress
                 elapsed = time.time() - t_start
                 log.info(f"\n  PROGRESS: {stats['partitions']} parts | {stats['files']} files | {stats['rows']} rows | {stats['bytes_uploaded']/(1024**3):.1f} GB up | {elapsed/3600:.1f} hrs")
 
             sys_dt = time.time() - sys_t0
             log.info(f"\n  {sys_name} done in {sys_dt/60:.1f} min")
 
-    # Final flush
     flush_uploads()
 
     elapsed = time.time() - t_start
@@ -674,7 +704,6 @@ def main():
 
     log.info("=" * 60)
 
-    # Summary file
     sf = os.path.join(LOG_DIR, f"summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt")
     with open(sf, "w") as f:
         f.write(f"Time: {elapsed/3600:.1f} hrs\n")
