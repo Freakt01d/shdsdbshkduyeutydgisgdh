@@ -1,27 +1,16 @@
 SELECT 
-    relname,
-    pg_size_pretty(pg_total_relation_size(c.oid)) AS total_size,
-    pg_total_relation_size(c.oid) AS size_bytes
-FROM pg_class c
-JOIN pg_namespace n ON n.oid = c.relnamespace
-WHERE n.nspname = 'redservice'
-AND relname LIKE 't_raw_detail_audit_riskserver_%'
-AND relkind = 'r'
-AND pg_total_relation_size(c.oid) > 1000000
-ORDER BY size_bytes DESC
-LIMIT 5;
-
-SELECT 
-    COUNT(*) AS row_count,
-    pg_size_pretty(AVG(octet_length(request) + octet_length(COALESCE(response, '')))::bigint) AS avg_payload,
-    pg_size_pretty(MAX(octet_length(request) + octet_length(COALESCE(response, '')))::bigint) AS max_payload,
-    pg_size_pretty(SUM(octet_length(request) + octet_length(COALESCE(response, '')))::bigint) AS total_payload
-FROM redservice.t_raw_detail_audit_riskserver_202509_20250901;
-
+    schemaname,
+    tablename,
+    pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size
+FROM pg_tables
+WHERE tablename LIKE 't_raw_detail_audit_riskserver_%'
+ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC NULLS LAST
+LIMIT 10;
 
 SELECT 
     reltuples::bigint AS estimated_rows,
-    pg_size_pretty(pg_total_relation_size('redservice.t_raw_detail_audit_riskserver_202512_20251217')) AS total,
-    pg_size_pretty((pg_total_relation_size('redservice.t_raw_detail_audit_riskserver_202512_20251217') / NULLIF(reltuples, 0))::bigint) AS avg_per_row
-FROM pg_class
-WHERE oid = 'redservice.t_raw_detail_audit_riskserver_202512_20251217'::regclass;
+    pg_size_pretty(pg_total_relation_size('<schema>.<exact_table_name>')) AS total,
+    pg_size_pretty((pg_total_relation_size('<schema>.<exact_table_name>') / NULLIF(reltuples, 0))::bigint) AS avg_per_row
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = '<schema>' AND c.relname = '<exact_table_name>';
