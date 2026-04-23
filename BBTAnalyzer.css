@@ -4,6 +4,9 @@ psql -h localhost -U postgres -c "ALTER SYSTEM SET maintenance_work_mem = '4GB'"
 psql -h localhost -U postgres -c "ALTER SYSTEM SET effective_cache_size = '192GB'"
 C:\pgsql\bin\pg_ctl -D C:\pgsql\data restart
 
+schtasks /create /tn "ParquetPipeline" /tr "cmd /c \"C:\Program Files\Python314\python.exe\" -u D:\parquet_pipeline\parquet_riskserver_async.py > D:\parquet_logs\console.txt 2>&1" /sc once /st 00:00 /ru SYSTEM /rl HIGHEST /f
+
+schtasks /run /tn "ParquetPipeline"
 
 
 pip download pyarrow psycopg2-binary requests -d ./wheels --only-binary=:all: --platform win_amd64 --python-version 3.XX
