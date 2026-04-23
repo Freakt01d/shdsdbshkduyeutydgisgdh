@@ -26,3 +26,14 @@ kubectl set resources deployment/red-datalake-api-prd -n <namespace> --limits=me
 kubectl set resources deployment/red-datalake-api-prd -n <namespace> --limits=memory=64Gi
 kubectl rollout status deployment/red-datalake-api-prd -n <namespace>
 
+
+$f = 'D:\parquet_pipeline\parquet_riskserver_async.py'
+(Get-Content $f -Raw) `
+  -replace [char]0x201C,'"' `
+  -replace [char]0x201D,'"' `
+  -replace [char]0x2018,"'" `
+  -replace [char]0x2019,"'" `
+  -replace [char]0x2013,'-' `
+  -replace [char]0x2014,'-' `
+  | Set-Content $f -NoNewline -Encoding UTF8
+
