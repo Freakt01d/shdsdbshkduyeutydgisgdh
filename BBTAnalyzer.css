@@ -20,3 +20,9 @@ D:\parquet_pipeline\.venv\Scripts\pip install --no-index --find-links=D:\Downloa
 schtasks /create /tn "ParquetPipeline" /tr "cmd /c \"D:\parquet_pipeline\.venv\Scripts\python.exe\" -u D:\parquet_pipeline\pipeline_final_audited.py > D:\parquet_logs\console.txt 2>&1" /sc once /st 00:00 /ru SYSTEM /rl HIGHEST /f
 schtasks /run /tn "ParquetPipeline"
 
+
+kubectl set resources deployment/red-datalake-api-prd -n <namespace> --limits=memory=64Gi --dry-run=server
+
+kubectl set resources deployment/red-datalake-api-prd -n <namespace> --limits=memory=64Gi
+kubectl rollout status deployment/red-datalake-api-prd -n <namespace>
+
