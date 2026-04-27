@@ -12,6 +12,14 @@ SELECT pg_reload_conf();
 import pandas as pd
 from pathlib import Path
 
+import duckdb
+
+duckdb.sql("""
+    COPY (SELECT * FROM 'input.snappy.parquet')
+    TO 'output.csv' (HEADER, DELIMITER ',')
+""")
+
+
 def parquet_to_csv(parquet_path, csv_path=None):
     """Convert a single .snappy.parquet file to CSV."""
     parquet_path = Path(parquet_path)
