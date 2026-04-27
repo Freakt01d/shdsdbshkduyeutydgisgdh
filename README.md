@@ -2,34 +2,16 @@ import duckdb
 
 con = duckdb.connect()
 
-GOLDEN = "data_astro_20260423_posttrade_red-azure-blobfeeder-posttrade-XXX.snappy.parquet"
-MINE = "your_output_file.snappy.parquet"
+GOLDEN = "data_astro_20260423_posttrade_red-azure-blobfeeder-XXX.snappy.parquet"
 
-for label, path in [("GOLDEN", GOLDEN), ("MINE", MINE)]:
-    print(f"\n=== {label} ===")
-    
-    # Row count
-    count = con.execute(f"SELECT COUNT(*) FROM '{path}'").fetchone()[0]
-    print(f"Rows: {count}")
-    
-    # Avg flags per row - use array_length, not length
-    avg_flags = con.execute(f"""
-        SELECT AVG(array_length(Flags)) FROM '{path}'
-    """).fetchone()[0]
-    print(f"Avg flags per row: {avg_flags:.2f}")
-    
-    # Top 5 flag names - unnest the list of structs
-    top = con.execute(f"""
-        SELECT flag.Name, COUNT(*) AS cnt
-        FROM '{path}', UNNEST(Flags) AS t(flag)
-        WHERE flag.Name IS NOT NULL
-        GROUP BY flag.Name 
-        ORDER BY cnt DESC 
-        LIMIT 5
-    """).fetchall()
-    print(f"Top flags: {top}")
-    
-    # First 3 sample rows
-    samples = con.execute(f"SELECT Flags FROM '{path}' LIMIT 3").fetchall()
-    for i, row in enumerate(samples):
-        print(f"  Sample {i}: {row[0]}")
+# Just show the schema first
+print("=== Schema ===")
+schema = con.execute(f"DESCRIBE SELECT * FROM '{GOLDEN}'").fetchall()
+for col_name, col_type, *rest in schema:
+    print(f"  {col_name:25s} {col_type}")
+
+# Show first 5 Flags values raw
+print("\n=== First 5 Flags ===")
+result = con.execute(f"SELECT Flags FROM '{GOLDEN}' LIMIT 5").fetchall()
+for i, row in enumerate(result):
+    print(f"  Row {i}: {row[0]}")
