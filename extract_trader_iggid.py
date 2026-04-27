@@ -1,13 +1,15 @@
 """
-Extract every Trader_IGGID value from redservice.t_raw_detail_audit
-for the date range 20-Apr-2026 to 24-Apr-2026, all 15 systems.
+Extract every Trader_IGGID and Sales_IGGID value from
+redservice.t_raw_detail_audit for the date range 20-Apr-2026 to
+24-Apr-2026, all 15 system partitions.
 
-Hits the 15 monthly system sub-partitions directly
-(t_raw_detail_audit_<s>_202604) instead of the parent, so we don't
-depend on the planner choosing partition pruning correctly. Postgres
-prunes the daily sub-partitions inside each monthly partition.
+Single regex pass per row captures both id types at once
+(combined alternation in the pattern).
 
-Output: trader_iggid_20apr_24apr_2026.xlsx (one column).
+Output: trader_sales_iggid_20apr_24apr_2026.xlsx
+        Sheet 1: Trader_IGGID  (one column, one value per row)
+        Sheet 2: Sales_IGGID   (one column, one value per row)
+Empty Value="" matches are skipped.
 """
 
 import psycopg2
@@ -38,23 +40,26 @@ SYSTEMS = [
     "riskserver", "sge", "test", "xone", "xonepayment",
 ]
 
-OUTPUT_XLSX = "trader_iggid_20apr_24apr_2026.xlsx"
+OUTPUT_XLSX = "trader_sales_iggid_20apr_24apr_2026.xlsx"
 
-# Build a UNION ALL across the 15 monthly system partitions.
-# audit_date filter triggers daily partition pruning inside each.
+# Combined regex: capture group 1 = id type, group 2 = value.
+# regexp_matches with 'g' returns one row per match (per request).
 def build_sql():
     parts = []
     for sys_name in SYSTEMS:
         table = f"redservice.t_raw_detail_audit_{sys_name}_{YYYYMM}"
         parts.append(f"""
-            SELECT (regexp_matches(
-                        request,
-                        'Name="Trader_IGGID"\\s+Value="([^"]*)"',
-                        'g'
-                   ))[1] AS trader_iggid
-            FROM {table}
-            WHERE audit_date BETWEEN {START_DATE} AND {END_DATE}
-              AND request LIKE '%Trader_IGGID%'
+            SELECT m[1] AS id_type, m[2] AS id_value
+            FROM (
+                SELECT regexp_matches(
+                           request,
+                           'Name="(Trader_IGGID|Sales_IGGID)"\\s+Value="([^"]*)"',
+                           'g'
+                       ) AS m
+                FROM {table}
+                WHERE audit_date BETWEEN {START_DATE} AND {END_DATE}
+                  AND request LIKE '%_IGGID%'
+            ) x
         """)
     return "\nUNION ALL\n".join(parts)
 
@@ -69,18 +74,28 @@ def main():
         cur.execute(sql)
 
         wb = Workbook(write_only=True)
-        ws = wb.create_sheet("Trader_IGGID")
-        ws.append(["Trader_IGGID"])
+        ws_trader = wb.create_sheet("Trader_IGGID")
+        ws_sales  = wb.create_sheet("Sales_IGGID")
+        ws_trader.append(["Trader_IGGID"])
+        ws_sales.append(["Sales_IGGID"])
 
-        count = 0
-        for (val,) in cur:
-            if val:
-                ws.append([val])
-                count += 1
+        n_trader = 0
+        n_sales  = 0
+        for id_type, id_value in cur:
+            if not id_value:
+                continue
+            if id_type == "Trader_IGGID":
+                ws_trader.append([id_value])
+                n_trader += 1
+            elif id_type == "Sales_IGGID":
+                ws_sales.append([id_value])
+                n_sales += 1
 
         cur.close()
         wb.save(OUTPUT_XLSX)
-        print(f"Wrote {count} Trader_IGGID values to {OUTPUT_XLSX}")
+        print(f"Trader_IGGID: {n_trader} values")
+        print(f"Sales_IGGID:  {n_sales} values")
+        print(f"Saved -> {OUTPUT_XLSX}")
     finally:
         conn.close()
 
