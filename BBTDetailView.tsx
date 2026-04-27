@@ -9,6 +9,43 @@ ALTER SYSTEM SET work_mem = '128MB';
 ALTER SYSTEM SET max_parallel_workers_per_gather = 2;
 SELECT pg_reload_conf();
 
+import duckdb
+
+con = duckdb.connect()
+
+GOLDEN = "path/to/golden.snappy.parquet"
+MINE = "path/to/mine.snappy.parquet"
+
+for label, path in [("GOLDEN", GOLDEN), ("MINE", MINE)]:
+    print(f"\n=== {label} ===")
+    
+    # Row count
+    count = con.execute(f"SELECT COUNT(*) FROM '{path}'").fetchone()[0]
+    print(f"Rows: {count}")
+    
+    # Avg flags per row
+    avg_flags = con.execute(f"""
+        SELECT AVG(LENGTH(Flags)) FROM '{path}'
+    """).fetchone()[0]
+    print(f"Avg flags per row: {avg_flags:.2f}")
+    
+    # Top 5 flag names
+    top = con.execute(f"""
+        SELECT flag.Name, COUNT(*) 
+        FROM '{path}', UNNEST(Flags) AS t(flag)
+        WHERE flag.Name IS NOT NULL
+        GROUP BY flag.Name 
+        ORDER BY COUNT(*) DESC 
+        LIMIT 5
+    """).fetchall()
+    print(f"Top flags: {top}")
+    
+    # First 3 sample rows of Flags
+    samples = con.execute(f"SELECT Flags FROM '{path}' LIMIT 3").fetchall()
+    for i, row in enumerate(samples):
+        print(f"  Sample {i}: {row[0]}")
+
+
 import pandas as pd
 from pathlib import Path
 
