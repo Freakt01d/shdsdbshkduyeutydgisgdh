@@ -19,36 +19,19 @@ duckdb.sql("""
     TO 'output.csv' (HEADER, DELIMITER ',')
 """)
 
+import pyarrow.parquet as pq
 
-def parquet_to_csv(parquet_path, csv_path=None):
-    """Convert a single .snappy.parquet file to CSV."""
-    parquet_path = Path(parquet_path)
-    if csv_path is None:
-        csv_path = parquet_path.with_suffix('.csv')
-        if parquet_path.suffixes[-2:] == ['.snappy', '.parquet']:
-            csv_path = parquet_path.with_name(parquet_path.stem.replace('.snappy', '') + '.csv')
+table = pq.read_table('path/to/golden.snappy.parquet')
 
-    df = pd.read_parquet(parquet_path, engine='pyarrow')
-    df.to_csv(csv_path, index=False)
-    print(f"Converted: {parquet_path} -> {csv_path} ({len(df)} rows)")
-    return csv_path
+# Check schema - what's the Flags column type?
+print("Schema:")
+print(table.schema)
 
+# Check first 5 rows of Flags column
+print("\nFirst 5 Flags values:")
+flags = table.column('Flags')
+for i in range(min(5, len(flags))):
+    val = flags[i].as_py()
+    print(f"  Row {i}: {val!r}  (type: {type(val).__name__})")
 
-def batch_convert(input_dir, output_dir=None):
-    """Convert all .snappy.parquet files in a directory."""
-    input_dir = Path(input_dir)
-    output_dir = Path(output_dir) if output_dir else input_dir
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    files = list(input_dir.glob('*.snappy.parquet')) + list(input_dir.glob('*.parquet'))
-    for f in files:
-        out = output_dir / (f.stem.replace('.snappy', '') + '.csv')
-        parquet_to_csv(f, out)
-
-
-if __name__ == '__main__':
-    # Single file
-    parquet_to_csv('data.snappy.parquet')
-
-    # Or batch convert a folder
-    # batch_convert('input_folder', 'output_folder')
+ 
