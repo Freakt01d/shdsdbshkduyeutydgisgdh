@@ -1,33 +1,36 @@
 """
-Convert the multi-sheet xlsx (with sheets exceeding Excel's row limit)
-into two CSVs - one per sheet. Streams in read-only mode so memory stays flat.
+Read a CSV with one value per row, write a new CSV with only unique values.
+Preserves the header row.
 """
 import csv
-from openpyxl import load_workbook
 
-INPUT_XLSX = "trader_sales_iggid_01apr_17apr_2026.xlsx"
-OUTPUT_TRADER = "trader_iggid_01apr_17apr_2026.csv"
-OUTPUT_SALES  = "sales_iggid_01apr_17apr_2026.csv"
+INPUT_CSV  = "trader_iggid_01apr_17apr_2026.csv"
+OUTPUT_CSV = "trader_iggid_unique_01apr_17apr_2026.csv"
 
-wb = load_workbook(INPUT_XLSX, read_only=True)
+seen = set()
+n_in = 0
+n_out = 0
 
-mapping = {
-    "Trader_IGGID": OUTPUT_TRADER,
-    "Sales_IGGID":  OUTPUT_SALES,
-}
+with open(INPUT_CSV, "r", newline="", encoding="utf-8") as fin, \
+     open(OUTPUT_CSV, "w", newline="", encoding="utf-8") as fout:
+    r = csv.reader(fin)
+    w = csv.writer(fout)
 
-for sheet_name, out_path in mapping.items():
-    ws = wb[sheet_name]
-    print(f"Converting {sheet_name} -> {out_path}", flush=True)
-    n = 0
-    with open(out_path, "w", newline="", encoding="utf-8") as f:
-        w = csv.writer(f)
-        for row in ws.iter_rows(values_only=True):
-            w.writerow(row)
-            n += 1
-            if n % 500_000 == 0:
-                print(f"  {n} rows", flush=True)
-    print(f"  Done: {n} rows in {out_path}", flush=True)
+    header = next(r, None)
+    if header is not None:
+        w.writerow(header)
 
-wb.close()
-print("All done.")
+    for row in r:
+        n_in += 1
+        if not row:
+            continue
+        val = row[0]
+        if not val or val in seen:
+            continue
+        seen.add(val)
+        w.writerow([val])
+        n_out += 1
+        if n_in % 500_000 == 0:
+            print(f"  read {n_in}, unique so far {n_out}", flush=True)
+
+print(f"Done: {n_in} read -> {n_out} unique -> {OUTPUT_CSV}")
